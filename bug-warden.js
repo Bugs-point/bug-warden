@@ -1,6 +1,7 @@
 function BugWarden(req, res, next) {
   const startTime = Date.now();
   res.on("finish", () => {
+    console.log("my directory + ", __dirname);
     const elapsedTime = Date.now() - startTime;
     const logDetails = `
       IP: ${req.ip}
