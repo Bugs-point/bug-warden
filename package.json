@@ -1,0 +1,11 @@
+{
+  "name": "bug-warden",
+  "version": "1.0.0",
+  "description": "BugWarden is an open-source Node.js module that guards your applications against bugs and errors. With integrated error handling and reporting, it ensures real-time monitoring of server-side issues, alerting you on services like Slack and email, helping you maintain robust and reliable software.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "bugs-point",
+  "license": "ISC"
+}
