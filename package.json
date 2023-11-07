@@ -15,8 +15,5 @@
   "bugs": {
     "url": "https://github.com/Bugs-point/bug-warden/issues"
   },
-  "homepage": "https://github.com/Bugs-point/bug-warden#readme",
-  "dependencies": {
-    "sqlite3": "^5.1.6"
-  }
+  "homepage": "https://github.com/Bugs-point/bug-warden#readme"
 }
