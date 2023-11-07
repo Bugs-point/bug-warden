@@ -1,27 +1,31 @@
-const sqlite3 = require("sqlite3").verbose();
-const db = new sqlite3.Database("../../bugwarden.db");
-
-function dbMigrate() {
-  db.exec(`
-    CREATE TABLE api_monitoring_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      ip TEXT NOT NULL,
-      timestamp DATETIME NOT NULL,
-      method TEXT NOT NULL,
-      original_url TEXT NOT NULL,
-      http_version TEXT NOT NULL,
-      status TEXT NOT NULL,
-      content_length TEXT NOT NULL,
-      referrer TEXT NOT NULL,
-      user_agent TEXT NOT NULL,
-      response_time TEXT NOT NULL
-    );
-  `);
+/**
+ * Function to paint a text with color based on HTTP status code ranges.
+ * @param {string} text - The text to be colored.
+ * @param {number} statusCode - The HTTP status code.
+ * @returns {string} - The colored text.
+ */
+function paintShop(text, statusCode) {
+  let colorCode =
+    statusCode >= 200 && statusCode < 300
+      ? "\x1b[32m" // Green for 2xx status codes
+      : statusCode >= 300 && statusCode < 400
+      ? "\x1b[36m" // Cyan for 3xx status codes
+      : statusCode >= 400 && statusCode < 500
+      ? "\x1b[33m" // Yellow for 4xx status codes
+      : statusCode >= 500
+      ? "\x1b[31m" // Red for 5xx status codes
+      : "\x1b[0m"; // Default color (reset)
+  return `${colorCode}${text}\x1b[0m`;
 }
 
-function BugWarden(req, res, next) {
-  dbMigrate();
+/**
+ * Middleware function for logging HTTP request details and response time.
+ * @param {Object} req - The HTTP request object.
+ * @param {Object} res - The HTTP response object.
+ * @param {function} next - The next middleware function.
+ */
 
+function BugWarden(req, res, next) {
   const startTime = Date.now();
   // listener
   res.on("finish", () => {
@@ -31,7 +35,7 @@ function BugWarden(req, res, next) {
     const method = req.method;
     const originalUrl = req.originalUrl;
     const httpVersion = `HTTP/${req.httpVersion}`;
-    const status = res.statusCode;
+    const status = +res.statusCode;
     const contentLength = `${res.getHeader("content-length") || 0}`;
     const referrer = `${req.get("referrer") || "-"}`;
     const userAgent = `${req.get("user-agent")}`;
@@ -50,64 +54,10 @@ function BugWarden(req, res, next) {
       Response-Time: ${responseTime}
     `;
 
-    // Inserting logs into db
-    dbInsert(
-      ip,
-      timestamp,
-      method,
-      originalUrl,
-      httpVersion,
-      status,
-      contentLength,
-      referrer,
-      userAgent,
-      responseTime
-    );
-
-    console.log(logDetails);
+    console.log(paintShop(logDetails, status));
   });
 
   next();
-}
-
-function dbInsert(
-  ip,
-  timestamp,
-  method,
-  originalUrl,
-  httpVersion,
-  status,
-  contentLength,
-  refferrer,
-  userAgent,
-  responseTime
-) {
-  db.exec(`
-  INSERT INTO your_table_name (
-    ip, 
-    timestamp, 
-    method, 
-    original_url,
-    http_version,
-    status, 
-    contentlength,
-    referrer, 
-    user_agent, 
-    response_time
-    )
-  VALUES (
-    '${ip}', 
-    '${timestamp}', 
-    '${method}', 
-    '${originalUrl}', 
-    '${httpVersion}', 
-    '${status}, 
-    '${contentLength}'
-    '${refferrer}'
-    '${userAgent}'
-    '${responseTime}'
-    );
-  `);
 }
 
 module.exports = BugWarden;
