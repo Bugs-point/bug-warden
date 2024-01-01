@@ -3,10 +3,10 @@
   "version": "1.0.3",
   "description": "BugWarden is an open-source Node.js module that guards your applications against bugs and errors. With integrated error handling and reporting, it ensures real-time monitoring of server-side issues, alerting you on services like Slack and email, helping you maintain robust and reliable software.",
   "main": "dist/app.js",
-  "module": "dist/app.mjs",
   "types": "dist/app.d.ts",
   "scripts": {
-    "build": "rm -rf ./dist && tsc"
+    "build": "rm -rf ./dist && tsc",
+    "release": "rm -rf ./dist && tsc && npx changeset publish"
   },
   "repository": {
     "type": "git",
@@ -23,6 +23,7 @@
     "typescript": "^5.3.3"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.27.1",
     "@types/express": "^4.17.21",
     "@types/node": "^20.10.6"
   }
