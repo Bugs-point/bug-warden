@@ -15,7 +15,6 @@ jobs:
         with:
           node-version: "18.x"
           registry-url: "https://registry.npmjs.org/bugwarden"
-
       - run: npm ci
       - run: npm run release
         env:
