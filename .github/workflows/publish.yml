@@ -16,8 +16,6 @@ jobs:
           node-version: "18.x"
           registry-url: "https://registry.npmjs.org/bugwarden"
 
-      - name: Create release pull request or publish
-
       - run: npm ci
       - run: npm run release
         env:

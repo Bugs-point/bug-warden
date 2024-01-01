@@ -7,7 +7,7 @@
   "private": "false",
   "scripts": {
     "build": "rm -rf ./dist && tsc",
-    "release": "rm -rf ./dist && tsc && changeset publish"
+    "release": "rm -rf ./dist && tsc && npm publish"
   },
   "repository": {
     "type": "git",
