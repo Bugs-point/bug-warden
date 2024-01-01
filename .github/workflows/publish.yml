@@ -4,20 +4,26 @@ on:
     branches:
       - "master"
 
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout/@v4
       - uses: actions/setup-node@v3
         with:
           node-version: "18.x"
-      - uses: changesets/action@v1
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - run: npm ci
       - run: npm run build
       - run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
-      - run: npm run release
+
+      - name: Create release pull request or publish to npmjs
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: npm run release
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

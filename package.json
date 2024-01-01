@@ -6,7 +6,7 @@
   "types": "./dist/app.d.ts",
   "scripts": {
     "build": "rm -rf ./dist && tsc",
-    "release": "rm -rf ./dist && tsc && npm publish"
+    "release": "rm -rf ./dist && tsc && changeset publish"
   },
   "repository": {
     "type": "git",
