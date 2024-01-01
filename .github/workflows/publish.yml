@@ -17,8 +17,6 @@ jobs:
           registry-url: "https://registry.npmjs.org/bugwarden"
 
       - name: Create release pull request or publish
-        id: changesets
-        uses: changesets/action@v1
 
       - run: npm ci
       - run: npm run release
