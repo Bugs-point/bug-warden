@@ -6,6 +6,7 @@ import { paintShop } from "./utility";
  * including IP address, timestamp, HTTP method, URL, status code, content length,
  * referrer, user agent, and response time.
  *
+ *
  * @param req - Express Request object representing the incoming HTTP request.
  * @param res - Express Response object representing the outgoing HTTP response.
  * @param next - Express NextFunction to pass control to the next middleware in the stack.
