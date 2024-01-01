@@ -1,4 +1,4 @@
-name: CI
+name: Build
 on:
   push:
     branches:
@@ -12,6 +12,5 @@ jobs:
         with:
           node-version: 18.x
           cache: "npm"
-
       - run: npm install --frozen-lockfile
       - run: npm run build
