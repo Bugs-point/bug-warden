@@ -1,5 +1,11 @@
 # bugwarden
 
+## 1.1.1
+
+### Patch Changes
+
+- 1ef2056: module file added to pkg json file
+
 ## 1.1.0
 
 ### Minor Changes
