@@ -1,5 +1,11 @@
 # bugwarden
 
+## 1.1.0
+
+### Minor Changes
+
+- 88873b8: Support for both cjs and esm based apps
+
 ## 1.0.4
 
 ### Patch Changes
