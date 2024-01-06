@@ -1,0 +1,5 @@
+---
+"bugwarden": patch
+---
+
+readme fixes

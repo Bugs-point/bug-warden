@@ -12,7 +12,7 @@ import { paintShop } from "./utility";
  * @param next - Express NextFunction to pass control to the next middleware in the stack.
  * @returns void
  */
-export function BugWarden(req: Request, res: Response, next: NextFunction) {
+export function bugwarden(req: Request, res: Response, next: NextFunction) {
   const startTime: number = Date.now();
 
   res.on("finish", () => {

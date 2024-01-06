@@ -21,8 +21,14 @@ npm install bugwarden
 1. **Require BugWarden** in your Express.js application:
 
 ```javascript
+// Common JS method
 const express = require("express");
-const bugwarden = require("bugwarden");
+const { bugwarden } = require("bugwarden");
+const app = express();
+
+// ES Module method
+import express from "express";
+import { bugwarden } from "bugwarden";
 const app = express();
 ```
 
@@ -48,9 +54,9 @@ app.listen(3002, () => {
 });
 ```
 
-**## Features**
+## Features
 
-**### paintShop(text, statusCode)**
+### paintShop(text, statusCode)
 
 - Colors text based on HTTP status code ranges for visual distinction in logs.
 - **Parameters:**
@@ -58,7 +64,7 @@ app.listen(3002, () => {
   - `statusCode`: The HTTP status code (number).
 - **Returns:** A string with the colored text.
 
-**### BugWarden(req, res, next)**
+### BugWarden(req, res, next)
 
 - Middleware function for logging HTTP request details and response time.
 - **Parameters:**
@@ -66,7 +72,7 @@ app.listen(3002, () => {
   - `res`: The HTTP response object.
   - `next`: The next middleware function.
 
-**### Logging Details:**
+### Logging Details:
 
 - IP
 - Timestamp (UTC)
@@ -79,7 +85,7 @@ app.listen(3002, () => {
 - User-Agent
 - Response-Time
 
-**## Example Log Output**
+## Example Log Output
 
 ```yaml
 IP: ::1
@@ -94,6 +100,6 @@ User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML
 Response-Time: 5ms
 ```
 
-**## Customize to Your Logging Needs**
+## Customize to Your Logging Needs
 
 BugWarden offers a flexible way to enhance your Express.js logging experience. Feel free to tailor it to your specific requirements for optimal debugging and monitoring.
