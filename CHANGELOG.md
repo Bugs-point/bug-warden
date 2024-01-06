@@ -1,5 +1,11 @@
 # bugwarden
 
+## 1.1.2
+
+### Patch Changes
+
+- 312ff49: readme fixes
+
 ## 1.1.1
 
 ### Patch Changes
