@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
-import { paintShop } from "./utility";
+import { processLog } from "./utility";
+import { BugwardenOptions } from "./bugwarden_options";
 
 /**
  * BugWarden middleware logs details of incoming HTTP requests and their corresponding responses,
@@ -12,37 +13,13 @@ import { paintShop } from "./utility";
  * @param next - Express NextFunction to pass control to the next middleware in the stack.
  * @returns void
  */
-export function bugwarden(req: Request, res: Response, next: NextFunction) {
-  const startTime: number = Date.now();
-
-  res.on("finish", () => {
-    const elapsedTime = Date.now() - startTime;
-    const ip = req.ip;
-    const timestamp = new Date().toUTCString();
-    const method = req.method;
-    const originalUrl = req.originalUrl;
-    const httpVersion = `HTTP/${req.httpVersion}`;
-    const status = +res.statusCode;
-    const contentLength = `${res.getHeader("content-length") || 0}`;
-    const referrer = `${req.get("referrer") || "-"}`;
-    const userAgent = `${req.get("user-agent")}`;
-    const responseTime = `${elapsedTime}ms`;
-
-    const logDetails = `
-      IP: ${ip}
-      Timestamp: [${timestamp}]
-      Method: ${method}
-      OriginalUrl: ${originalUrl}
-      HttpVersion: ${httpVersion}
-      Status: ${status}
-      Content-Length: ${contentLength}
-      Referrer: ${referrer}
-      User-Agent: "${userAgent}"
-      Response-Time: ${responseTime}
-    `;
-
-    console.log(paintShop(logDetails, status));
-  });
-
-  next();
+export function bugwarden(options?: BugwardenOptions) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const startTime: number = Date.now();
+    res.on("finish", () => {
+      const allowedAppLogs = processLog(req, res, startTime, options?.logging);
+      if (allowedAppLogs) console.log(allowedAppLogs);
+    });
+    next();
+  };
 }

@@ -39,10 +39,26 @@ const app = express();
 app.use(express.json());
 
 // Integrate BugWarden middleware
-app.use(bugwarden);
+app.use(bugwarden());
 ```
 
-3. **Define your routes and start your server:**
+3. **Use options:**
+
+```javascript
+// Display all logs
+app.use(bugwarden());
+
+// Display all logs
+app.use(bugwarden({ logging: true }));
+
+// No logs
+app.use(bugwarden({ logging: false }));
+
+// Specific logging
+app.use(bugwarden({ logging: ["method", "responseTime", "statusCode"] }));
+```
+
+4. **Define your routes and start your server:**
 
 ```javascript
 app.get("/", (req, res) => {
