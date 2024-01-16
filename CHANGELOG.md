@@ -1,5 +1,11 @@
 # bugwarden
 
+## 2.0.0
+
+### Major Changes
+
+- 1e61868: bugwarden function is not a middleware anymore. Instead it returns a middleware. Also, custom logging options are now added
+
 ## 1.1.2
 
 ### Patch Changes
