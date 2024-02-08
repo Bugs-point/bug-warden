@@ -58,7 +58,56 @@ app.use(bugwarden({ logging: false }));
 app.use(bugwarden({ logging: ["method", "responseTime", "statusCode"] }));
 ```
 
-4. **Define your routes and start your server:**
+4. Trigger slack notifications on specific status codes on any routes you want
+
+```javascript
+app.use(
+  bugwarden({
+    logging: true, // Enable / Disable logging
+    configureSlackNotification: {
+      // Slack notification configuration
+      webhookUrl: "<webhool URL>",
+      notificationConfig: [
+        {
+          onStatus: "5xx",
+          message:
+            {method} - {original-url} Failed with status code {status-code},
+          routes: "all",
+        },
+      ],
+    },
+  })
+);
+
+// Status code examples
+"all" for all status codes
+"2xx" for all 200 status codes
+"3xx" for all 300 status codes
+"4xx,5xx" for all 400 and 500 status codes
+
+// Route examples
+"all" for all routes
+"/api/user" for a specific route
+"/api/user/*"  for all routes starting with "/api/user/
+"/api/user,/api/admin,/api/public/*" multiple routes separated by comma ","
+
+// Message properties
+// For now bugwarden supports the following message properties
+{ip}
+{timestamp}
+{method}
+{original-url}
+{http-version}
+{status-code}
+{content-length}
+{referer}
+{user-agent}
+{response-time}
+Example : {method} - {original-url} Failed with status code {status-code}
+Notification : GET - /abc/def/xyz Failed with status code 503
+```
+
+5. **Define your routes and start your server:**
 
 ```javascript
 app.get("/", (req, res) => {
