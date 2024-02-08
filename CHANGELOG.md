@@ -1,5 +1,11 @@
 # bugwarden
 
+## 3.0.0
+
+### Major Changes
+
+- d1f2ec1: Slack notification feature added
+
 ## 2.0.0
 
 ### Major Changes
