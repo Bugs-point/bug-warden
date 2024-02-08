@@ -1,4 +1,4 @@
-export enum BugwardenLogPropertyEnum {
+export enum BugwardenLogParameterType {
   IP = "ip",
   TIMESTAMP = "timestamp",
   METHOD = "method",
