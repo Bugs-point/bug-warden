@@ -1,0 +1,5 @@
+---
+"bugwarden": patch
+---
+
+keywords added

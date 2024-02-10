@@ -66,7 +66,7 @@ app.use(
     logging: true, // Enable / Disable logging
     configureSlackNotification: {
       // Slack notification configuration
-      webhookUrl: "<webhool URL>",
+      webhookUrl: "<webhook URL>",
       notificationConfig: [
         {
           onStatus: "5xx",
