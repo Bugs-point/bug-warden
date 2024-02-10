@@ -1,5 +1,11 @@
 # bugwarden
 
+## 3.0.1
+
+### Patch Changes
+
+- 8c75efa: keywords added
+
 ## 3.0.0
 
 ### Major Changes
