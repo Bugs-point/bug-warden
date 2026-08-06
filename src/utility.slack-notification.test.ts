@@ -230,4 +230,29 @@ describe("processSlackNotification", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("sends diagnostic messages to a custom logger instead of console.log", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const customLogger = vi.fn();
+
+    const config: BugwardenSlackNotificationOptions = {
+      webhookUrl: "",
+      notificationConfig: [{ routes: "all", onStatus: "all", message: "hi" }],
+    };
+
+    await processSlackNotification(
+      config,
+      createRequest(),
+      createResponse(500),
+      new Date(),
+      10,
+      customLogger
+    );
+
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(customLogger).toHaveBeenCalledTimes(1);
+    expect(customLogger.mock.calls[0][0]).toContain(
+      "Please provide a webhook URL"
+    );
+  });
 });

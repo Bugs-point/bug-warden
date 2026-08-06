@@ -50,4 +50,21 @@ describe("bugwarden middleware", () => {
     expect(logSpy).toHaveBeenCalledTimes(1);
     logSpy.mockRestore();
   });
+
+  it("routes log output through a custom logger instead of console.log", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const customLogger = vi.fn();
+    const app = express();
+    app.use(bugwarden({ logging: true, logger: customLogger }));
+    app.get("/", (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    await request(app).get("/");
+    await flushFinishEvent();
+
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(customLogger).toHaveBeenCalledTimes(1);
+    logSpy.mockRestore();
+  });
 });

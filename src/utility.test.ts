@@ -1,6 +1,12 @@
 import type { Request, Response } from "express";
-import { describe, expect, it } from "vitest";
-import { coloredLogs, isIgnoredRoute, matchesRoute, processLog } from "./utility";
+import { describe, expect, it, vi } from "vitest";
+import {
+  bugwardenLog,
+  coloredLogs,
+  isIgnoredRoute,
+  matchesRoute,
+  processLog,
+} from "./utility";
 
 function createRequest(overrides: Partial<Request> = {}): Request {
   const headers: Record<string, string | undefined> = {
@@ -147,5 +153,29 @@ describe("isIgnoredRoute", () => {
     expect(isIgnoredRoute("/health", ignore)).toBe(true);
     expect(isIgnoredRoute("/internal/status", ignore)).toBe(true);
     expect(isIgnoredRoute("/api/user", ignore)).toBe(false);
+  });
+});
+
+describe("bugwardenLog", () => {
+  it("defaults to console.log when no logger is provided", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    bugwardenLog("hello");
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(logSpy.mock.calls[0][0]).toContain("hello");
+    logSpy.mockRestore();
+  });
+
+  it("sends output to a custom logger instead of console.log", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const customLogger = vi.fn();
+
+    bugwardenLog("hello", "ERROR", customLogger);
+
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(customLogger).toHaveBeenCalledTimes(1);
+    expect(customLogger.mock.calls[0][0]).toContain("hello");
+    logSpy.mockRestore();
   });
 });

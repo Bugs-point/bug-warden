@@ -14,6 +14,8 @@ import { BugwardenOptions } from "./bugwarden_options";
  * @returns void
  */
 export function bugwarden(options?: BugwardenOptions) {
+  const logger = options?.logger ?? console.log;
+
   return (req: Request, res: Response, next: NextFunction) => {
     const startTimeMS: number = Date.now();
     res.on("finish", async () => {
@@ -29,7 +31,7 @@ export function bugwarden(options?: BugwardenOptions) {
       );
 
       /* Log processing */
-      if (allowedAppLogs) console.log(allowedAppLogs);
+      if (allowedAppLogs) logger(allowedAppLogs);
 
       /* Slack notification processing */
       if (options?.configureSlackNotification) {
@@ -38,7 +40,8 @@ export function bugwarden(options?: BugwardenOptions) {
           req,
           res,
           timestamp,
-          elapsedTime
+          elapsedTime,
+          logger
         );
       }
     });

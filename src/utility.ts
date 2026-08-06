@@ -5,6 +5,7 @@ import { BugwardenLogParameterType } from "./bugwarden_log_property.enum";
 import { BugwardenSlackNotificationOptions } from "./slack_notification_options";
 import { BugwardenLogLevel } from "./types/log_level";
 import { BugwardenLogLevelColorsPalette } from "./bugwarden_log_level_color_palette";
+import { BugwardenLogger } from "./types/bugwarden_logger";
 
 /**
  * Retrieves the current timestamp formatted as a string in the en-US locale with 12-hour time format.
@@ -62,12 +63,13 @@ export function isIgnoredRoute(originalUrl: string, ignore?: string[]): boolean 
 
 export function bugwardenLog(
   message: string,
-  logLevel: BugwardenLogLevel = "LOG"
+  logLevel: BugwardenLogLevel = "LOG",
+  logger: BugwardenLogger = console.log
 ) {
   const timestamp = getCurrentTimestamp();
   const logColor = BugwardenLogLevelColorsPalette[logLevel];
   const logMessage = `${logColor}${timestamp} - ${logLevel} [Bugwarden] ${message}\x1b[0m`;
-  console.log(logMessage);
+  logger(logMessage);
 }
 
 /**
@@ -177,13 +179,18 @@ export async function processSlackNotification(
   req: Request,
   res: Response,
   timestamp: Date,
-  elapsedTime: number
+  elapsedTime: number,
+  logger: BugwardenLogger = console.log
 ) {
   const originalUrl = req.route?.path || req.originalUrl;
   const statusCode = res.statusCode;
 
   if (!slackConfiguration.webhookUrl?.length) {
-    bugwardenLog("Please provide a webhook URL for sending slack notification");
+    bugwardenLog(
+      "Please provide a webhook URL for sending slack notification",
+      "LOG",
+      logger
+    );
     return;
   }
   const webhookUrl = slackConfiguration.webhookUrl;
@@ -199,7 +206,8 @@ export async function processSlackNotification(
     ) {
       bugwardenLog(
         "Config should include all <message> <routes> and <onStatus>",
-        "ERROR"
+        "ERROR",
+        logger
       );
       break;
     }
@@ -296,12 +304,16 @@ export async function processSlackNotification(
     }
 
     if (isStatusCodeIncluded && isEndpointIncluded) {
-      await postSlackNotification(webhookUrl, message);
+      await postSlackNotification(webhookUrl, message, logger);
     }
   }
 }
 
-async function postSlackNotification(webhookUrl: string, text: string) {
+async function postSlackNotification(
+  webhookUrl: string,
+  text: string,
+  logger: BugwardenLogger = console.log
+) {
   try {
     await fetch(webhookUrl, {
       method: "POST",
@@ -313,6 +325,6 @@ async function postSlackNotification(webhookUrl: string, text: string) {
       }),
     });
   } catch (e) {
-    bugwardenLog(`Cannot access slack webhook url:${e}`, "ERROR");
+    bugwardenLog(`Cannot access slack webhook url:${e}`, "ERROR", logger);
   }
 }

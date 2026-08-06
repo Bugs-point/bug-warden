@@ -77,6 +77,9 @@ app.use(bugwarden({ logging: ["method", "responseTime", "statusCode"] }));
 
 // Skip logging and Slack notifications entirely for noisy routes
 app.use(bugwarden({ ignore: ["/health", "/metrics", "/internal/*"] }));
+
+// Route all Bugwarden output through your own logger instead of console.log
+app.use(bugwarden({ logger: (message) => myLogger.info(message) }));
 ```
 
 `ignore` accepts `"all"`, exact paths, or `"/prefix/*"` wildcards — same conventions as the Slack `routes` option below.
