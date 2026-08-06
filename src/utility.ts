@@ -6,6 +6,7 @@ import { BugwardenSlackNotificationOptions } from "./slack_notification_options"
 import { BugwardenLogLevel } from "./types/log_level";
 import { BugwardenLogLevelColorsPalette } from "./bugwarden_log_level_color_palette";
 import { BugwardenLogger } from "./types/bugwarden_logger";
+import { BugwardenLogFormat } from "./types/bugwarden_log_format";
 
 /**
  * Retrieves the current timestamp formatted as a string in the en-US locale with 12-hour time format.
@@ -72,106 +73,94 @@ export function bugwardenLog(
   logger(logMessage);
 }
 
+type LogFieldKey = keyof BugwardenLogProperties;
+
+const ALL_LOG_FIELD_KEYS: LogFieldKey[] = [
+  "ip",
+  "timestamp",
+  "method",
+  "originalURL",
+  "httpVersion",
+  "statusCode",
+  "contentLength",
+  "referrer",
+  "userAgent",
+  "responseTime",
+];
+
+const LOG_FIELD_LABELS: Record<LogFieldKey, string> = {
+  ip: BugwardenLogParameterType.IP,
+  timestamp: BugwardenLogParameterType.TIMESTAMP,
+  method: BugwardenLogParameterType.METHOD,
+  originalURL: BugwardenLogParameterType.ORIGINAL_URL,
+  httpVersion: BugwardenLogParameterType.HTTP_VERSION,
+  statusCode: BugwardenLogParameterType.STATUS_CODE,
+  contentLength: BugwardenLogParameterType.CONTENT_LENGTH,
+  referrer: BugwardenLogParameterType.REFERRER,
+  userAgent: BugwardenLogParameterType.USER_AGENT,
+  responseTime: BugwardenLogParameterType.RESPONSE_TIME,
+};
+
+function collectLogFields(
+  req: Request,
+  res: Response,
+  elapsedTime: number
+): Record<LogFieldKey, string | number | undefined> {
+  return {
+    ip: req.ip,
+    timestamp: new Date().toUTCString(),
+    method: req.method,
+    originalURL: req.originalUrl,
+    httpVersion: `HTTP/${req.httpVersion}`,
+    statusCode: res.statusCode,
+    contentLength: Number(res.getHeader("content-length") || 0),
+    referrer: req.get("referrer") || "-",
+    userAgent: req.get("user-agent"),
+    responseTime: elapsedTime,
+  };
+}
+
 /**
- * Process and generate a log string based on the provided request, response, and optional logging options.
+ * Process and generate a log line based on the provided request, response, and optional logging options.
  *
  * @param req - Express Request object representing the incoming HTTP request.
  * @param res - Express Response object representing the outgoing HTTP response.
  * @param elapsedTime - A timestamp representing the start time of the request processing.
  * @param logging - Optional configuration for customizing the log output. Can be a boolean or an array of log properties.
- * @returns A formatted log string containing relevant information based on the provided options.
+ * @param format - "text" (default) for the colored human-readable format, or "json" for a single-line JSON object.
+ * @returns A formatted log line containing relevant information based on the provided options.
  */
 export function processLog(
   req: Request,
   res: Response,
   elapsedTime: number,
-  logging?: BugwardenLoggingOption
+  logging?: BugwardenLoggingOption,
+  format: BugwardenLogFormat = "text"
 ): string {
-  let log = "";
-  const statusCode = res.statusCode;
+  if (logging === false) return "";
 
-  if (Array.isArray(logging)) {
-    const customLogs: string[] = [];
-    logging.forEach((log) => {
-      switch (log) {
-        case "ip":
-          customLogs.push(`${BugwardenLogParameterType.IP}: ${req.ip}`);
-          break;
-        case "timestamp":
-          customLogs.push(
-            `${
-              BugwardenLogParameterType.TIMESTAMP
-            }: ${new Date().toUTCString()}`
-          );
-          break;
-        case "method":
-          customLogs.push(`${BugwardenLogParameterType.METHOD}: ${req.method}`);
-          break;
-        case "originalURL":
-          customLogs.push(
-            `${BugwardenLogParameterType.ORIGINAL_URL}: ${req.originalUrl}`
-          );
-          break;
-        case "httpVersion":
-          customLogs.push(
-            `${BugwardenLogParameterType.HTTP_VERSION}: HTTP/${req.httpVersion}`
-          );
-          break;
-        case "statusCode":
-          customLogs.push(
-            `${BugwardenLogParameterType.STATUS_CODE}: ${res.statusCode}`
-          );
-          break;
-        case "contentLength":
-          customLogs.push(
-            `${BugwardenLogParameterType.CONTENT_LENGTH}: ${
-              res.getHeader("content-length") || 0
-            }`
-          );
-          break;
-        case "referrer":
-          customLogs.push(
-            `${BugwardenLogParameterType.REFERRER}: ${
-              req.get("referrer") || "-"
-            }`
-          );
-          break;
-        case "userAgent":
-          customLogs.push(
-            `${BugwardenLogParameterType.USER_AGENT}: ${req.get("user-agent")}`
-          );
-          break;
-        case "responseTime":
-          customLogs.push(
-            `${BugwardenLogParameterType.RESPONSE_TIME}: ${elapsedTime}ms`
-          );
-          break;
-        default:
-          break;
-      }
-    });
-    log = customLogs.join("\n");
-  } else if (logging === true || logging === undefined) {
-    const allProperties = new BugwardenLogProperties(
-      `${BugwardenLogParameterType.IP}: ${req.ip}`, // ip
-      `${BugwardenLogParameterType.TIMESTAMP}: ${new Date().toUTCString()}`, // timestamp
-      `${BugwardenLogParameterType.METHOD}: ${req.method}`, // method
-      `${BugwardenLogParameterType.ORIGINAL_URL}: ${req.originalUrl}`, // original url
-      `${BugwardenLogParameterType.HTTP_VERSION}: HTTP/${req.httpVersion}`, // http version
-      `${BugwardenLogParameterType.STATUS_CODE}: ${res.statusCode}`, // status code
-      `${BugwardenLogParameterType.CONTENT_LENGTH}: ${
-        res.getHeader("content-length") || 0
-      }`, // content length
-      `${BugwardenLogParameterType.REFERRER}: ${req.get("referrer") || "-"}`, // referrer
-      `${BugwardenLogParameterType.USER_AGENT}: ${req.get("user-agent")}`, // user agent
-      `${BugwardenLogParameterType.RESPONSE_TIME}: ${elapsedTime}ms` // response time
-    );
-    log = Object.values(allProperties).join("\n");
-  } else {
-    log = "";
+  const selectedKeys = Array.isArray(logging) ? logging : ALL_LOG_FIELD_KEYS;
+  if (!selectedKeys.length) return "";
+
+  const fields = collectLogFields(req, res, elapsedTime);
+
+  if (format === "json") {
+    const jsonLog: Record<string, string | number | undefined> = {};
+    for (const key of selectedKeys) {
+      if (key in fields) jsonLog[key] = fields[key];
+    }
+    return Object.keys(jsonLog).length ? JSON.stringify(jsonLog) : "";
   }
 
-  return log ? "\n" + coloredLogs(log, statusCode) + "\n" : "";
+  const lines = selectedKeys
+    .filter((key) => key in fields)
+    .map((key) => {
+      const value = key === "responseTime" ? `${fields[key]}ms` : fields[key];
+      return `${LOG_FIELD_LABELS[key]}: ${value}`;
+    });
+
+  const log = lines.join("\n");
+  return log ? "\n" + coloredLogs(log, res.statusCode) + "\n" : "";
 }
 
 export async function processSlackNotification(

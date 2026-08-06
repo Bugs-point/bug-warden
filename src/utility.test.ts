@@ -123,6 +123,46 @@ describe("processLog", () => {
 
     expect(log).toBe("\n\x1b[31mmethod: GET\x1b[0m\n");
   });
+
+  it("emits a single-line JSON object when format is 'json'", () => {
+    const req = createRequest();
+    const res = createResponse({
+      statusCode: 404,
+      headers: { "content-length": "12" },
+    });
+
+    const log = processLog(req, res, 7, true, "json");
+
+    expect(log).not.toContain("\x1b[");
+    expect(JSON.parse(log)).toEqual({
+      ip: "127.0.0.1",
+      timestamp: expect.any(String),
+      method: "GET",
+      originalURL: "/test",
+      httpVersion: "HTTP/1.1",
+      statusCode: 404,
+      contentLength: 12,
+      referrer: "-",
+      userAgent: "test-agent",
+      responseTime: 7,
+    });
+  });
+
+  it("only includes selected fields in JSON output", () => {
+    const req = createRequest();
+    const res = createResponse({ statusCode: 200 });
+
+    const log = processLog(req, res, 3, ["method", "statusCode"], "json");
+
+    expect(JSON.parse(log)).toEqual({ method: "GET", statusCode: 200 });
+  });
+
+  it("returns an empty string for JSON format when logging is disabled", () => {
+    const req = createRequest();
+    const res = createResponse();
+
+    expect(processLog(req, res, 3, false, "json")).toBe("");
+  });
 });
 
 describe("matchesRoute", () => {

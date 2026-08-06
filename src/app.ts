@@ -27,7 +27,8 @@ export function bugwarden(options?: BugwardenOptions) {
         req,
         res,
         elapsedTime,
-        options?.logging
+        options?.logging,
+        options?.format
       );
 
       /* Log processing */

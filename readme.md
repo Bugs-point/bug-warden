@@ -80,6 +80,10 @@ app.use(bugwarden({ ignore: ["/health", "/metrics", "/internal/*"] }));
 
 // Route all Bugwarden output through your own logger instead of console.log
 app.use(bugwarden({ logger: (message) => myLogger.info(message) }));
+
+// Emit single-line JSON logs instead of colored text, for log aggregators
+app.use(bugwarden({ format: "json" }));
+// {"ip":"::1","timestamp":"...","method":"GET","originalURL":"/","httpVersion":"HTTP/1.1","statusCode":200,"contentLength":12,"referrer":"-","userAgent":"...","responseTime":5}
 ```
 
 `ignore` accepts `"all"`, exact paths, or `"/prefix/*"` wildcards — same conventions as the Slack `routes` option below.
