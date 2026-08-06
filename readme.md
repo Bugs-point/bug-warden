@@ -1,5 +1,10 @@
 # BugWarden
 
+[![npm version](https://img.shields.io/npm/v/bugwarden.svg)](https://www.npmjs.com/package/bugwarden)
+[![npm downloads](https://img.shields.io/npm/dm/bugwarden.svg)](https://www.npmjs.com/package/bugwarden)
+[![Build Status](https://github.com/Bugs-point/bug-warden/actions/workflows/main.yml/badge.svg)](https://github.com/Bugs-point/bug-warden/actions/workflows/main.yml)
+[![License: MIT](https://img.shields.io/npm/l/bugwarden.svg)](https://github.com/Bugs-point/bug-warden/blob/master/LICENSE)
+
 ## Enhance Your Express.js Logging with Colorful Status Codes and Detailed Logs
 
 BugWarden is an npm package designed to make your Express.js application's logging more informative and visually appealing. It provides:
