@@ -13,12 +13,16 @@ export class BugwardenOptions {
    * @constructor
    * @param {BugwardenLoggingOption} logging - Optional logging configuration for Bugwarden.
    * @param {BugwardenSlackNotificationOptions[]} configureSlackNotification - Optional Slack notification configuration for Bugwarden.
+   * @param {string[]} ignore - Optional list of routes to skip entirely (no logging, no Slack notifications).
+   * Supports "all", exact paths, and "/prefix/*" wildcards, e.g. ["/health", "/metrics", "/internal/*"].
    */
   constructor(
     public logging?: BugwardenLoggingOption,
-    public configureSlackNotification?: BugwardenSlackNotificationOptions
+    public configureSlackNotification?: BugwardenSlackNotificationOptions,
+    public ignore?: string[]
   ) {
     this.logging = logging;
     this.configureSlackNotification = configureSlackNotification;
+    this.ignore = ignore;
   }
 }

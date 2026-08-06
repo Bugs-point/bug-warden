@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { processLog, processSlackNotification } from "./utility";
+import { isIgnoredRoute, processLog, processSlackNotification } from "./utility";
 import { BugwardenOptions } from "./bugwarden_options";
 
 /**
@@ -17,6 +17,8 @@ export function bugwarden(options?: BugwardenOptions) {
   return (req: Request, res: Response, next: NextFunction) => {
     const startTimeMS: number = Date.now();
     res.on("finish", async () => {
+      if (isIgnoredRoute(req.originalUrl, options?.ignore)) return;
+
       const elapsedTime = Date.now() - startTimeMS;
       const timestamp = new Date();
       const allowedAppLogs = processLog(

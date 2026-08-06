@@ -38,6 +38,28 @@ export function coloredLogs(text: string, statusCode: number): string {
   return `${colorCode}${text}\x1b[0m`;
 }
 
+/**
+ * Checks whether a URL matches a route pattern. A pattern ending in "/*"
+ * matches any URL starting with that prefix; otherwise the match is exact.
+ */
+export function matchesRoute(originalUrl: string, route: string): boolean {
+  if (route.includes("*")) {
+    const startingOfEndpoint = route.replace("/*", "");
+    return originalUrl.startsWith(startingOfEndpoint);
+  }
+  return originalUrl === route;
+}
+
+/**
+ * Checks whether a URL should be skipped based on a list of ignore patterns,
+ * using the same "all" / exact / wildcard conventions as Slack route matching.
+ */
+export function isIgnoredRoute(originalUrl: string, ignore?: string[]): boolean {
+  if (!ignore?.length) return false;
+  if (ignore.includes("all")) return true;
+  return ignore.some((route) => matchesRoute(originalUrl, route));
+}
+
 export function bugwardenLog(
   message: string,
   logLevel: BugwardenLogLevel = "LOG"
@@ -266,17 +288,9 @@ export async function processSlackNotification(
       isEndpointIncluded = true;
     } else {
       for (const route of routes) {
-        if (route.includes("*")) {
-          const startingOfEndpoint = route.replace("/*", "");
-          if (originalUrl.startsWith(startingOfEndpoint)) {
-            isEndpointIncluded = true;
-            break;
-          }
-        } else {
-          if (originalUrl === route) {
-            isEndpointIncluded = true;
-            break;
-          }
+        if (matchesRoute(originalUrl, route)) {
+          isEndpointIncluded = true;
+          break;
         }
       }
     }

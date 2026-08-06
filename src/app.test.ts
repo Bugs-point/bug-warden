@@ -1,7 +1,11 @@
 import express from "express";
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { bugwarden } from "./app";
+
+function flushFinishEvent() {
+  return new Promise((resolve) => setTimeout(resolve, 10));
+}
 
 describe("bugwarden middleware", () => {
   it("passes requests through to the route handler", async () => {
@@ -15,5 +19,35 @@ describe("bugwarden middleware", () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ ok: true });
+  });
+
+  it("skips logging entirely for ignored routes", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const app = express();
+    app.use(bugwarden({ logging: true, ignore: ["/health"] }));
+    app.get("/health", (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    await request(app).get("/health");
+    await flushFinishEvent();
+
+    expect(logSpy).not.toHaveBeenCalled();
+    logSpy.mockRestore();
+  });
+
+  it("logs normally for routes outside the ignore list", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const app = express();
+    app.use(bugwarden({ logging: true, ignore: ["/health"] }));
+    app.get("/", (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    await request(app).get("/");
+    await flushFinishEvent();
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    logSpy.mockRestore();
   });
 });

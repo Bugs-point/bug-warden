@@ -74,7 +74,12 @@ app.use(bugwarden({ logging: false }));
 
 // Specific logging
 app.use(bugwarden({ logging: ["method", "responseTime", "statusCode"] }));
+
+// Skip logging and Slack notifications entirely for noisy routes
+app.use(bugwarden({ ignore: ["/health", "/metrics", "/internal/*"] }));
 ```
+
+`ignore` accepts `"all"`, exact paths, or `"/prefix/*"` wildcards — same conventions as the Slack `routes` option below.
 
 4. Trigger slack notifications on specific status codes on any routes you want
 

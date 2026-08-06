@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { describe, expect, it } from "vitest";
-import { coloredLogs, processLog } from "./utility";
+import { coloredLogs, isIgnoredRoute, matchesRoute, processLog } from "./utility";
 
 function createRequest(overrides: Partial<Request> = {}): Request {
   const headers: Record<string, string | undefined> = {
@@ -116,5 +116,36 @@ describe("processLog", () => {
     const log = processLog(req, res, 1, ["method"]);
 
     expect(log).toBe("\n\x1b[31mmethod: GET\x1b[0m\n");
+  });
+});
+
+describe("matchesRoute", () => {
+  it("matches exact routes", () => {
+    expect(matchesRoute("/api/user", "/api/user")).toBe(true);
+    expect(matchesRoute("/api/user", "/api/admin")).toBe(false);
+  });
+
+  it("matches wildcard routes by prefix", () => {
+    expect(matchesRoute("/api/user/123", "/api/user/*")).toBe(true);
+    expect(matchesRoute("/other", "/api/user/*")).toBe(false);
+  });
+});
+
+describe("isIgnoredRoute", () => {
+  it("returns false when no ignore list is configured", () => {
+    expect(isIgnoredRoute("/health", undefined)).toBe(false);
+    expect(isIgnoredRoute("/health", [])).toBe(false);
+  });
+
+  it("ignores everything when the list includes 'all'", () => {
+    expect(isIgnoredRoute("/anything", ["all"])).toBe(true);
+  });
+
+  it("matches exact and wildcard entries in the ignore list", () => {
+    const ignore = ["/health", "/internal/*"];
+
+    expect(isIgnoredRoute("/health", ignore)).toBe(true);
+    expect(isIgnoredRoute("/internal/status", ignore)).toBe(true);
+    expect(isIgnoredRoute("/api/user", ignore)).toBe(false);
   });
 });
