@@ -262,17 +262,21 @@ export async function processSlackNotification(
     }
 
     // Matching endpoint
-    for (const route of routes) {
-      if (route.includes("*")) {
-        const startingOfEndpoint = route.replace("/*", "");
-        if (originalUrl.startsWith(startingOfEndpoint)) {
-          isEndpointIncluded = true;
-          break;
-        }
-      } else {
-        if (originalUrl === route) {
-          isEndpointIncluded = true;
-          break;
+    if (routes.includes("all")) {
+      isEndpointIncluded = true;
+    } else {
+      for (const route of routes) {
+        if (route.includes("*")) {
+          const startingOfEndpoint = route.replace("/*", "");
+          if (originalUrl.startsWith(startingOfEndpoint)) {
+            isEndpointIncluded = true;
+            break;
+          }
+        } else {
+          if (originalUrl === route) {
+            isEndpointIncluded = true;
+            break;
+          }
         }
       }
     }
