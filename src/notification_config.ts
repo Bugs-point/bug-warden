@@ -14,14 +14,17 @@ export interface BugwardenNotificationConfig {
 
   /**
    * Specifies the HTTP status code(s) for which notifications should be triggered.
-   * It can be set to "all" for all status codes, or a specific status code as a string.
+   * Accepts "all", a range like "4xx", an exact code like "404", or a comma-separated
+   * mix of both.
    *
-   * @property {HttpStatusCode} onStatus
+   * @property {string} onStatus
    * @example
    * - "all" for all status codes
    * - "2xx" for all 200 status codes
    * - "3xx" for all 300 status codes
    * - "4xx,5xx" for all 400 and 500 status codes
+   * - "404" for an exact status code
+   * - "400,401,404,5xx" for specific codes combined with a range
    */
   onStatus: string;
 

@@ -250,6 +250,10 @@ export async function processSlackNotification(
             }
             break;
           default:
+            if (Number(status) === statusCode) {
+              isStatusCodeIncluded = true;
+              found = true;
+            }
             break;
         }
 

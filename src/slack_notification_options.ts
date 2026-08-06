@@ -29,20 +29,20 @@ export interface BugwardenSlackNotificationOptions {
    * @description
    * An object containing properties to customize the triggering of Slack notifications. The following properties are available:
    *
-   * - `routes`: Specifies the routes for which notifications should be triggered. It can be set to "all" for all routes, a specific route as a string, or an array of specific routes.
-   *   - @property {RoutesType} routes
+   * - `routes`: Specifies the routes for which notifications should be triggered. It can be set to "all" for all routes, a specific route as a string, or a comma-separated string of routes.
+   *   - @property {string} routes
    *   - @example
    *     - "all"
    *     - "/api/user"
-   *     - ["/api/posts", "/api/comments"]
+   *     - "/api/posts,/api/comments"
    *
-   * - `onStatus`: Specifies the HTTP status code(s) for which notifications should be triggered. It can be set to "all" for all status codes, or a specific status code as a string or number.
-   *   - @property {HttpStatusCode} onStatus
+   * - `onStatus`: Specifies the HTTP status code(s) for which notifications should be triggered. Accepts "all", a range like "4xx", an exact code, or a comma-separated mix of both.
+   *   - @property {string} onStatus
    *   - @example
    *     - "all"
-   *     - "all200"
-   *     - 404
-   *     - [400, 401, 404, "all500"]
+   *     - "4xx"
+   *     - "404"
+   *     - "400,401,404,5xx"
    *
    * - `message`: The message to be included in the Slack notification when triggered.
    *   - @property {string} message

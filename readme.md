@@ -84,6 +84,8 @@ app.use(
 "2xx" for all 200 status codes
 "3xx" for all 300 status codes
 "4xx,5xx" for all 400 and 500 status codes
+"404" for an exact status code
+"400,401,404,5xx" for specific codes combined with a range
 
 // Route examples
 "all" for all routes
