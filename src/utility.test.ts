@@ -183,6 +183,41 @@ describe("processLog", () => {
     expect(processLog(req, res, 1, ["requestId"], "text")).toBe("");
     expect(processLog(req, res, 1, ["requestId"], "json")).toBe("");
   });
+
+  it("includes responseBody when provided", () => {
+    const req = createRequest();
+    const res = createResponse();
+
+    const textLog = processLog(
+      req,
+      res,
+      1,
+      ["responseBody"],
+      "text",
+      undefined,
+      '{"error":"boom"}'
+    );
+    expect(textLog).toContain('response-body: {"error":"boom"}');
+
+    const jsonLog = processLog(
+      req,
+      res,
+      1,
+      ["responseBody"],
+      "json",
+      undefined,
+      '{"error":"boom"}'
+    );
+    expect(JSON.parse(jsonLog)).toEqual({ responseBody: '{"error":"boom"}' });
+  });
+
+  it("omits responseBody when it isn't provided", () => {
+    const req = createRequest();
+    const res = createResponse();
+
+    expect(processLog(req, res, 1, ["responseBody"], "text")).toBe("");
+    expect(processLog(req, res, 1, ["responseBody"], "json")).toBe("");
+  });
 });
 
 describe("matchesRoute", () => {

@@ -10,7 +10,8 @@ export class BugwardenLogProperties {
     public referrer?: string,
     public userAgent?: string,
     public responseTime?: string,
-    public requestId?: string
+    public requestId?: string,
+    public responseBody?: string
   ) {
     this.ip = ip;
     this.timestamp = timestamp;
@@ -23,5 +24,6 @@ export class BugwardenLogProperties {
     this.userAgent = userAgent;
     this.responseTime = responseTime;
     this.requestId = requestId;
+    this.responseBody = responseBody;
   }
 }

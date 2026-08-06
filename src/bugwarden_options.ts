@@ -27,6 +27,9 @@ export class BugwardenOptions {
    * notification configuration, for services other than Slack. Posts { message } instead of Slack's { text }.
    * @param {BugwardenDiscordNotificationOptions} configureDiscordNotification - Optional Discord webhook
    * notification configuration. Posts Discord's { content } webhook body shape.
+   * @param {number} captureResponseBody - Optional. When set, captures up to this many characters of the
+   * response body (from res.send/res.json) and makes it available as the responseBody log field and the
+   * {response-body} notification placeholder. Disabled (no capture, zero overhead) when omitted.
    */
   constructor(
     public logging?: BugwardenLoggingOption,
@@ -35,7 +38,8 @@ export class BugwardenOptions {
     public logger?: BugwardenLogger,
     public format?: BugwardenLogFormat,
     public configureWebhookNotification?: BugwardenWebhookNotificationOptions,
-    public configureDiscordNotification?: BugwardenDiscordNotificationOptions
+    public configureDiscordNotification?: BugwardenDiscordNotificationOptions,
+    public captureResponseBody?: number
   ) {
     this.logging = logging;
     this.configureSlackNotification = configureSlackNotification;
@@ -44,5 +48,6 @@ export class BugwardenOptions {
     this.format = format;
     this.configureWebhookNotification = configureWebhookNotification;
     this.configureDiscordNotification = configureDiscordNotification;
+    this.captureResponseBody = captureResponseBody;
   }
 }

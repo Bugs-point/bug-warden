@@ -84,9 +84,15 @@ app.use(bugwarden({ logger: (message) => myLogger.info(message) }));
 // Emit single-line JSON logs instead of colored text, for log aggregators
 app.use(bugwarden({ format: "json" }));
 // {"ip":"::1","timestamp":"...","method":"GET","originalURL":"/","httpVersion":"HTTP/1.1","statusCode":200,"contentLength":12,"referrer":"-","userAgent":"...","responseTime":5}
+
+// Capture up to N characters of the response body (from res.send/res.json),
+// available as the responseBody log field and {response-body} placeholder
+app.use(bugwarden({ captureResponseBody: 500 }));
 ```
 
 Every request also gets an `x-request-id` — reused from the incoming header if the client already sent one, otherwise generated — echoed back in the response and available as the `requestId` log field / `{request-id}` Slack message placeholder, so you can correlate a log line with the Slack alert it triggered.
+
+`captureResponseBody` is opt-in and off by default — when set, it's genuinely useful for seeing what an error response actually said (e.g. `{response-body}` in a Slack message for 5xx alerts), but be mindful it can capture sensitive data if your responses include any, and it only captures bodies sent via `res.send`/`res.json` (not raw `res.write`/streamed responses).
 
 `ignore` accepts `"all"`, exact paths, or `"/prefix/*"` wildcards — same conventions as the Slack `routes` option below.
 
@@ -139,6 +145,7 @@ app.use(
 {user-agent}
 {response-time}
 {request-id}
+{response-body}
 Example : {method} - {original-url} Failed with status code {status-code}
 Notification : GET - /abc/def/xyz Failed with status code 503
 ```

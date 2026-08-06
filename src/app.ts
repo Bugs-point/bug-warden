@@ -32,6 +32,23 @@ export function bugwarden(options?: BugwardenOptions) {
     const requestId = req.get("x-request-id") || randomUUID();
     res.setHeader("x-request-id", requestId);
 
+    let capturedResponseBody: string | undefined;
+    const maxResponseBodyChars = options?.captureResponseBody;
+
+    if (maxResponseBodyChars) {
+      const originalSend = res.send.bind(res);
+      res.send = ((body?: unknown) => {
+        if (typeof body === "string" || Buffer.isBuffer(body)) {
+          const text = typeof body === "string" ? body : body.toString("utf8");
+          capturedResponseBody =
+            text.length > maxResponseBodyChars
+              ? `${text.slice(0, maxResponseBodyChars)}…(truncated)`
+              : text;
+        }
+        return originalSend(body);
+      }) as typeof res.send;
+    }
+
     res.on("finish", async () => {
       if (isIgnoredRoute(req.originalUrl, options?.ignore)) return;
 
@@ -43,7 +60,8 @@ export function bugwarden(options?: BugwardenOptions) {
         elapsedTime,
         options?.logging,
         options?.format,
-        requestId
+        requestId,
+        capturedResponseBody
       );
 
       /* Log processing */
@@ -59,7 +77,8 @@ export function bugwarden(options?: BugwardenOptions) {
           elapsedTime,
           logger,
           requestId,
-          slackNotificationThrottle
+          slackNotificationThrottle,
+          capturedResponseBody
         );
       }
 
@@ -73,7 +92,8 @@ export function bugwarden(options?: BugwardenOptions) {
           elapsedTime,
           logger,
           requestId,
-          webhookNotificationThrottle
+          webhookNotificationThrottle,
+          capturedResponseBody
         );
       }
 
@@ -87,7 +107,8 @@ export function bugwarden(options?: BugwardenOptions) {
           elapsedTime,
           logger,
           requestId,
-          discordNotificationThrottle
+          discordNotificationThrottle,
+          capturedResponseBody
         );
       }
     });

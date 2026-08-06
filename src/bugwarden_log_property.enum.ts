@@ -10,4 +10,5 @@ export enum BugwardenLogParameterType {
   USER_AGENT = "user-agent",
   RESPONSE_TIME = "response-time",
   REQUEST_ID = "request-id",
+  RESPONSE_BODY = "response-body",
 }

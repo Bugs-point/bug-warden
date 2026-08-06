@@ -131,6 +131,7 @@ const ALL_LOG_FIELD_KEYS: LogFieldKey[] = [
   "userAgent",
   "responseTime",
   "requestId",
+  "responseBody",
 ];
 
 const LOG_FIELD_LABELS: Record<LogFieldKey, string> = {
@@ -145,13 +146,15 @@ const LOG_FIELD_LABELS: Record<LogFieldKey, string> = {
   userAgent: BugwardenLogParameterType.USER_AGENT,
   responseTime: BugwardenLogParameterType.RESPONSE_TIME,
   requestId: BugwardenLogParameterType.REQUEST_ID,
+  responseBody: BugwardenLogParameterType.RESPONSE_BODY,
 };
 
 function collectLogFields(
   req: Request,
   res: Response,
   elapsedTime: number,
-  requestId?: string
+  requestId?: string,
+  responseBody?: string
 ): Record<LogFieldKey, string | number | undefined> {
   return {
     ip: req.ip,
@@ -165,6 +168,7 @@ function collectLogFields(
     userAgent: req.get("user-agent"),
     responseTime: elapsedTime,
     requestId,
+    responseBody,
   };
 }
 
@@ -177,6 +181,7 @@ function collectLogFields(
  * @param logging - Optional configuration for customizing the log output. Can be a boolean or an array of log properties.
  * @param format - "text" (default) for the colored human-readable format, or "json" for a single-line JSON object.
  * @param requestId - Optional correlation ID (from the incoming x-request-id header, or generated) to include in the log.
+ * @param responseBody - Optional captured response body (see BugwardenOptions.captureResponseBody).
  * @returns A formatted log line containing relevant information based on the provided options.
  */
 export function processLog(
@@ -185,14 +190,15 @@ export function processLog(
   elapsedTime: number,
   logging?: BugwardenLoggingOption,
   format: BugwardenLogFormat = "text",
-  requestId?: string
+  requestId?: string,
+  responseBody?: string
 ): string {
   if (logging === false) return "";
 
   const selectedKeys = Array.isArray(logging) ? logging : ALL_LOG_FIELD_KEYS;
   if (!selectedKeys.length) return "";
 
-  const fields = collectLogFields(req, res, elapsedTime, requestId);
+  const fields = collectLogFields(req, res, elapsedTime, requestId, responseBody);
 
   if (format === "json") {
     const jsonLog: Record<string, string | number | undefined> = {};
@@ -302,7 +308,8 @@ function renderMessageTemplate(
   originalUrl: string,
   timestamp: Date,
   elapsedTime: number,
-  requestId?: string
+  requestId?: string,
+  responseBody?: string
 ): string {
   return template
     .replace(`{${BugwardenLogParameterType.IP}}`, `${req?.ip}`)
@@ -321,7 +328,11 @@ function renderMessageTemplate(
     )
     .replace(`{${BugwardenLogParameterType.RESPONSE_TIME}}`, `${elapsedTime}`)
     .replace(`{${BugwardenLogParameterType.USER_AGENT}}`, `${req.get("user-agent")}`)
-    .replace(`{${BugwardenLogParameterType.REQUEST_ID}}`, `${requestId ?? "-"}`);
+    .replace(`{${BugwardenLogParameterType.REQUEST_ID}}`, `${requestId ?? "-"}`)
+    .replace(
+      `{${BugwardenLogParameterType.RESPONSE_BODY}}`,
+      `${responseBody ?? "-"}`
+    );
 }
 
 async function postJson(
@@ -351,7 +362,8 @@ export async function processSlackNotification(
   elapsedTime: number,
   logger: BugwardenLogger = console.log,
   requestId?: string,
-  throttle?: NotificationThrottle
+  throttle?: NotificationThrottle,
+  responseBody?: string
 ) {
   const originalUrl = req.route?.path || req.originalUrl;
   const statusCode = res.statusCode;
@@ -396,7 +408,8 @@ export async function processSlackNotification(
       originalUrl,
       timestamp,
       elapsedTime,
-      requestId
+      requestId,
+      responseBody
     );
     const finalMessage =
       suppressedCount > 0
@@ -415,7 +428,8 @@ export async function processWebhookNotification(
   elapsedTime: number,
   logger: BugwardenLogger = console.log,
   requestId?: string,
-  throttle?: NotificationThrottle
+  throttle?: NotificationThrottle,
+  responseBody?: string
 ) {
   const originalUrl = req.route?.path || req.originalUrl;
   const statusCode = res.statusCode;
@@ -460,7 +474,8 @@ export async function processWebhookNotification(
       originalUrl,
       timestamp,
       elapsedTime,
-      requestId
+      requestId,
+      responseBody
     );
     const finalMessage =
       suppressedCount > 0
@@ -479,7 +494,8 @@ export async function processDiscordNotification(
   elapsedTime: number,
   logger: BugwardenLogger = console.log,
   requestId?: string,
-  throttle?: NotificationThrottle
+  throttle?: NotificationThrottle,
+  responseBody?: string
 ) {
   const originalUrl = req.route?.path || req.originalUrl;
   const statusCode = res.statusCode;
@@ -524,7 +540,8 @@ export async function processDiscordNotification(
       originalUrl,
       timestamp,
       elapsedTime,
-      requestId
+      requestId,
+      responseBody
     );
     const finalMessage =
       suppressedCount > 0
