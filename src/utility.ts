@@ -202,7 +202,10 @@ export async function processSlackNotification(
         `{${BugwardenLogParameterType.REFERRER}}`,
         `${req.get("referrer") || "-"}`
       )
-      .replace(`${BugwardenLogParameterType.RESPONSE_TIME}`, `${elapsedTime}`)
+      .replace(
+        `{${BugwardenLogParameterType.RESPONSE_TIME}}`,
+        `${elapsedTime}`
+      )
       .replace(
         `{${BugwardenLogParameterType.USER_AGENT}}`,
         `${req.get("user-agent")}`
