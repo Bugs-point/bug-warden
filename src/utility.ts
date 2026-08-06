@@ -3,6 +3,7 @@ import { BugwardenLogProperties } from "./bugwarden_log_properties";
 import { BugwardenLoggingOption } from "./types/bugwarden_logging_option";
 import { BugwardenLogParameterType } from "./bugwarden_log_property.enum";
 import { BugwardenSlackNotificationOptions } from "./slack_notification_options";
+import { BugwardenNotificationConfig } from "./notification_config";
 import { BugwardenLogLevel } from "./types/log_level";
 import { BugwardenLogLevelColorsPalette } from "./bugwarden_log_level_color_palette";
 import { BugwardenLogger } from "./types/bugwarden_logger";
@@ -210,6 +211,136 @@ export function processLog(
   return log ? "\n" + coloredLogs(log, res.statusCode) + "\n" : "";
 }
 
+/**
+ * Checks whether a request (by status code and matched URL) satisfies a notification
+ * config's onStatus/routes filters. Shared by every notification channel (Slack, generic
+ * webhook, ...) so the status/route matching rules only need to be implemented once.
+ */
+function matchesNotificationConfig(
+  config: BugwardenNotificationConfig,
+  originalUrl: string,
+  statusCode: number
+): boolean {
+  const onStatuses = config.onStatus.split(",");
+  const routes = config.routes.split(",");
+
+  let isStatusCodeIncluded = false;
+  if (onStatuses.includes("all")) {
+    isStatusCodeIncluded = true;
+  } else {
+    for (const status of onStatuses) {
+      let found = false;
+
+      switch (status) {
+        case "1xx":
+          if (statusCode >= 100 && statusCode < 200) {
+            isStatusCodeIncluded = true;
+            found = true;
+          }
+          break;
+        case "2xx":
+          if (statusCode >= 200 && statusCode < 300) {
+            isStatusCodeIncluded = true;
+            found = true;
+          }
+          break;
+        case "3xx":
+          if (statusCode >= 300 && statusCode < 400) {
+            isStatusCodeIncluded = true;
+            found = true;
+          }
+          break;
+        case "4xx":
+          if (statusCode >= 400 && statusCode < 500) {
+            isStatusCodeIncluded = true;
+            found = true;
+          }
+          break;
+        case "5xx":
+          if (statusCode >= 500 && statusCode < 600) {
+            isStatusCodeIncluded = true;
+            found = true;
+          }
+          break;
+        default:
+          if (Number(status) === statusCode) {
+            isStatusCodeIncluded = true;
+            found = true;
+          }
+          break;
+      }
+
+      if (found) break;
+    }
+  }
+
+  let isEndpointIncluded = false;
+  if (routes.includes("all")) {
+    isEndpointIncluded = true;
+  } else {
+    for (const route of routes) {
+      if (matchesRoute(originalUrl, route)) {
+        isEndpointIncluded = true;
+        break;
+      }
+    }
+  }
+
+  return isStatusCodeIncluded && isEndpointIncluded;
+}
+
+/**
+ * Substitutes {ip}, {timestamp}, {method}, etc. placeholders in a notification message
+ * template with values from the current request/response.
+ */
+function renderMessageTemplate(
+  template: string,
+  req: Request,
+  res: Response,
+  originalUrl: string,
+  timestamp: Date,
+  elapsedTime: number,
+  requestId?: string
+): string {
+  return template
+    .replace(`{${BugwardenLogParameterType.IP}}`, `${req?.ip}`)
+    .replace(`{${BugwardenLogParameterType.TIMESTAMP}}`, timestamp.toDateString())
+    .replace(`{${BugwardenLogParameterType.METHOD}}`, req.method)
+    .replace(`{${BugwardenLogParameterType.ORIGINAL_URL}}`, originalUrl)
+    .replace(`{${BugwardenLogParameterType.HTTP_VERSION}}`, req.httpVersion)
+    .replace(`{${BugwardenLogParameterType.STATUS_CODE}}`, `${res.statusCode}`)
+    .replace(
+      `{${BugwardenLogParameterType.CONTENT_LENGTH}}`,
+      `${res.getHeader("content-length") || 0}`
+    )
+    .replace(
+      `{${BugwardenLogParameterType.REFERRER}}`,
+      `${req.get("referrer") || "-"}`
+    )
+    .replace(`{${BugwardenLogParameterType.RESPONSE_TIME}}`, `${elapsedTime}`)
+    .replace(`{${BugwardenLogParameterType.USER_AGENT}}`, `${req.get("user-agent")}`)
+    .replace(`{${BugwardenLogParameterType.REQUEST_ID}}`, `${requestId ?? "-"}`);
+}
+
+async function postJson(
+  url: string,
+  body: Record<string, unknown>,
+  channelLabel: string,
+  logger: BugwardenLogger = console.log
+) {
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    bugwardenLog(`Cannot access ${channelLabel} webhook url:${e}`, "ERROR", logger);
+  }
+}
+
 export async function processSlackNotification(
   slackConfiguration: BugwardenSlackNotificationOptions,
   req: Request,
@@ -234,9 +365,6 @@ export async function processSlackNotification(
   const webhookUrl = slackConfiguration.webhookUrl;
 
   for (const config of slackConfiguration?.notificationConfig) {
-    let isStatusCodeIncluded: boolean = false;
-    let isEndpointIncluded: boolean = false;
-
     if (
       !config.message?.length ||
       !config.onStatus?.length ||
@@ -250,134 +378,29 @@ export async function processSlackNotification(
       break;
     }
 
-    const onStatuses = config.onStatus?.split(",");
-    const routes = config.routes?.split(",");
-    const message = config.message
-      .replace(`{${BugwardenLogParameterType.IP}}`, `${req?.ip}`)
-      .replace(
-        `{${BugwardenLogParameterType.TIMESTAMP}}`,
-        timestamp.toDateString()
-      )
-      .replace(`{${BugwardenLogParameterType.METHOD}}`, req.method)
-      .replace(`{${BugwardenLogParameterType.ORIGINAL_URL}}`, originalUrl)
-      .replace(`{${BugwardenLogParameterType.HTTP_VERSION}}`, req.httpVersion)
-      .replace(`{${BugwardenLogParameterType.STATUS_CODE}}`, `${statusCode}`)
-      .replace(
-        `{${BugwardenLogParameterType.CONTENT_LENGTH}}`,
-        `${res.getHeader("content-length") || 0}`
-      )
-      .replace(
-        `{${BugwardenLogParameterType.REFERRER}}`,
-        `${req.get("referrer") || "-"}`
-      )
-      .replace(
-        `{${BugwardenLogParameterType.RESPONSE_TIME}}`,
-        `${elapsedTime}`
-      )
-      .replace(
-        `{${BugwardenLogParameterType.USER_AGENT}}`,
-        `${req.get("user-agent")}`
-      )
-      .replace(
-        `{${BugwardenLogParameterType.REQUEST_ID}}`,
-        `${requestId ?? "-"}`
-      );
+    if (!matchesNotificationConfig(config, originalUrl, statusCode)) continue;
 
-    // Matching status code
-    if (onStatuses.includes("all")) {
-      isStatusCodeIncluded = true;
-    } else {
-      for (const status of onStatuses) {
-        let found = false;
+    const throttleKey = `${config.routes}::${config.onStatus}::${config.message}`;
+    const { allowed, suppressedCount } = throttle
+      ? throttle.shouldNotify(throttleKey, slackConfiguration.throttleMs ?? 0)
+      : { allowed: true, suppressedCount: 0 };
 
-        switch (status) {
-          case "1xx":
-            if (statusCode >= 100 && statusCode < 200) {
-              isStatusCodeIncluded = true;
-              found = true;
-            }
-            break;
-          case "2xx":
-            if (statusCode >= 200 && statusCode < 300) {
-              isStatusCodeIncluded = true;
-              found = true;
-            }
-            break;
-          case "3xx":
-            if (statusCode >= 300 && statusCode < 400) {
-              isStatusCodeIncluded = true;
-              found = true;
-            }
-            break;
-          case "4xx":
-            if (statusCode >= 400 && statusCode < 500) {
-              isStatusCodeIncluded = true;
-              found = true;
-            }
-            break;
-          case "5xx":
-            if (statusCode >= 500 && statusCode < 600) {
-              isStatusCodeIncluded = true;
-              found = true;
-            }
-            break;
-          default:
-            if (Number(status) === statusCode) {
-              isStatusCodeIncluded = true;
-              found = true;
-            }
-            break;
-        }
+    if (!allowed) continue;
 
-        if (found) break;
-      }
-    }
+    const message = renderMessageTemplate(
+      config.message,
+      req,
+      res,
+      originalUrl,
+      timestamp,
+      elapsedTime,
+      requestId
+    );
+    const finalMessage =
+      suppressedCount > 0
+        ? `${message} (+${suppressedCount} more since last alert)`
+        : message;
 
-    // Matching endpoint
-    if (routes.includes("all")) {
-      isEndpointIncluded = true;
-    } else {
-      for (const route of routes) {
-        if (matchesRoute(originalUrl, route)) {
-          isEndpointIncluded = true;
-          break;
-        }
-      }
-    }
-
-    if (isStatusCodeIncluded && isEndpointIncluded) {
-      const throttleKey = `${config.routes}::${config.onStatus}::${config.message}`;
-      const { allowed, suppressedCount } = throttle
-        ? throttle.shouldNotify(throttleKey, slackConfiguration.throttleMs ?? 0)
-        : { allowed: true, suppressedCount: 0 };
-
-      if (allowed) {
-        const finalMessage =
-          suppressedCount > 0
-            ? `${message} (+${suppressedCount} more since last alert)`
-            : message;
-        await postSlackNotification(webhookUrl, finalMessage, logger);
-      }
-    }
-  }
-}
-
-async function postSlackNotification(
-  webhookUrl: string,
-  text: string,
-  logger: BugwardenLogger = console.log
-) {
-  try {
-    await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text,
-      }),
-    });
-  } catch (e) {
-    bugwardenLog(`Cannot access slack webhook url:${e}`, "ERROR", logger);
+    await postJson(webhookUrl, { text: finalMessage }, "slack", logger);
   }
 }
