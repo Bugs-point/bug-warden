@@ -168,7 +168,30 @@ app.use(
 
 Same `routes`, `onStatus`, `message`, and placeholder conventions as Slack notifications, but posts a plain `{ "message": "<templated message>" }` JSON body instead of Slack's `{ text }` envelope — useful for PagerDuty-style webhooks or your own internal services. `configureSlackNotification` and `configureWebhookNotification` can be used together; each has its own independent throttling.
 
-6. **Define your routes and start your server:**
+6. On Discord instead? Same idea, using Discord's webhook format
+
+```javascript
+app.use(
+  bugwarden({
+    configureDiscordNotification: {
+      webhookUrl: "<your Discord webhook URL>",
+      throttleMs: 300000, // optional
+      notificationConfig: [
+        {
+          onStatus: "5xx",
+          message:
+            {method} - {original-url} Failed with status code {status-code},
+          routes: "all",
+        },
+      ],
+    },
+  })
+);
+```
+
+Create a Discord webhook under a channel's **Settings > Integrations > Webhooks**. Same `routes`/`onStatus`/`message` conventions again, posting Discord's `{ content }` body shape. Can be combined with `configureSlackNotification` and/or `configureWebhookNotification` — all three run independently with their own throttling.
+
+7. **Define your routes and start your server:**
 
 ```javascript
 app.get("/", (req, res) => {

@@ -3,6 +3,7 @@ import { NextFunction, Request, Response } from "express";
 import {
   createNotificationThrottle,
   isIgnoredRoute,
+  processDiscordNotification,
   processLog,
   processSlackNotification,
   processWebhookNotification,
@@ -24,6 +25,7 @@ export function bugwarden(options?: BugwardenOptions) {
   const logger = options?.logger ?? console.log;
   const slackNotificationThrottle = createNotificationThrottle();
   const webhookNotificationThrottle = createNotificationThrottle();
+  const discordNotificationThrottle = createNotificationThrottle();
 
   return (req: Request, res: Response, next: NextFunction) => {
     const startTimeMS: number = Date.now();
@@ -72,6 +74,20 @@ export function bugwarden(options?: BugwardenOptions) {
           logger,
           requestId,
           webhookNotificationThrottle
+        );
+      }
+
+      /* Discord notification processing */
+      if (options?.configureDiscordNotification) {
+        await processDiscordNotification(
+          options.configureDiscordNotification,
+          req,
+          res,
+          timestamp,
+          elapsedTime,
+          logger,
+          requestId,
+          discordNotificationThrottle
         );
       }
     });

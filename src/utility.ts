@@ -5,6 +5,7 @@ import { BugwardenLogParameterType } from "./bugwarden_log_property.enum";
 import { BugwardenSlackNotificationOptions } from "./slack_notification_options";
 import { BugwardenNotificationConfig } from "./notification_config";
 import { BugwardenWebhookNotificationOptions } from "./webhook_notification_options";
+import { BugwardenDiscordNotificationOptions } from "./discord_notification_options";
 import { BugwardenLogLevel } from "./types/log_level";
 import { BugwardenLogLevelColorsPalette } from "./bugwarden_log_level_color_palette";
 import { BugwardenLogger } from "./types/bugwarden_logger";
@@ -467,5 +468,69 @@ export async function processWebhookNotification(
         : message;
 
     await postJson(url, { message: finalMessage }, "webhook", logger);
+  }
+}
+
+export async function processDiscordNotification(
+  discordConfiguration: BugwardenDiscordNotificationOptions,
+  req: Request,
+  res: Response,
+  timestamp: Date,
+  elapsedTime: number,
+  logger: BugwardenLogger = console.log,
+  requestId?: string,
+  throttle?: NotificationThrottle
+) {
+  const originalUrl = req.route?.path || req.originalUrl;
+  const statusCode = res.statusCode;
+
+  if (!discordConfiguration.webhookUrl?.length) {
+    bugwardenLog(
+      "Please provide a webhook URL for sending discord notification",
+      "LOG",
+      logger
+    );
+    return;
+  }
+  const webhookUrl = discordConfiguration.webhookUrl;
+
+  for (const config of discordConfiguration?.notificationConfig) {
+    if (
+      !config.message?.length ||
+      !config.onStatus?.length ||
+      !config.routes?.length
+    ) {
+      bugwardenLog(
+        "Config should include all <message> <routes> and <onStatus>",
+        "ERROR",
+        logger
+      );
+      break;
+    }
+
+    if (!matchesNotificationConfig(config, originalUrl, statusCode)) continue;
+
+    const throttleKey = `${config.routes}::${config.onStatus}::${config.message}`;
+    const { allowed, suppressedCount } = throttle
+      ? throttle.shouldNotify(throttleKey, discordConfiguration.throttleMs ?? 0)
+      : { allowed: true, suppressedCount: 0 };
+
+    if (!allowed) continue;
+
+    const message = renderMessageTemplate(
+      config.message,
+      req,
+      res,
+      originalUrl,
+      timestamp,
+      elapsedTime,
+      requestId
+    );
+    const finalMessage =
+      suppressedCount > 0
+        ? `${message} (+${suppressedCount} more since last alert)`
+        : message;
+
+    await postJson(webhookUrl, { content: finalMessage }, "discord webhook", logger);
   }
 }

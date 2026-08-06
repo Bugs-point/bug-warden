@@ -1,6 +1,7 @@
 import { BugwardenLoggingOption } from "./types/bugwarden_logging_option";
 import { BugwardenSlackNotificationOptions } from "./slack_notification_options";
 import { BugwardenWebhookNotificationOptions } from "./webhook_notification_options";
+import { BugwardenDiscordNotificationOptions } from "./discord_notification_options";
 import { BugwardenLogger } from "./types/bugwarden_logger";
 import { BugwardenLogFormat } from "./types/bugwarden_log_format";
 
@@ -24,6 +25,8 @@ export class BugwardenOptions {
    * for a single-line JSON object per request, suited to log aggregators like Datadog or ELK.
    * @param {BugwardenWebhookNotificationOptions} configureWebhookNotification - Optional generic webhook
    * notification configuration, for services other than Slack. Posts { message } instead of Slack's { text }.
+   * @param {BugwardenDiscordNotificationOptions} configureDiscordNotification - Optional Discord webhook
+   * notification configuration. Posts Discord's { content } webhook body shape.
    */
   constructor(
     public logging?: BugwardenLoggingOption,
@@ -31,7 +34,8 @@ export class BugwardenOptions {
     public ignore?: string[],
     public logger?: BugwardenLogger,
     public format?: BugwardenLogFormat,
-    public configureWebhookNotification?: BugwardenWebhookNotificationOptions
+    public configureWebhookNotification?: BugwardenWebhookNotificationOptions,
+    public configureDiscordNotification?: BugwardenDiscordNotificationOptions
   ) {
     this.logging = logging;
     this.configureSlackNotification = configureSlackNotification;
@@ -39,5 +43,6 @@ export class BugwardenOptions {
     this.logger = logger;
     this.format = format;
     this.configureWebhookNotification = configureWebhookNotification;
+    this.configureDiscordNotification = configureDiscordNotification;
   }
 }
