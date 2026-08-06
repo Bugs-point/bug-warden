@@ -99,6 +99,7 @@ app.use(
     configureSlackNotification: {
       // Slack notification configuration
       webhookUrl: "<webhook URL>",
+      throttleMs: 300000, // at most one alert per config every 5 minutes (optional)
       notificationConfig: [
         {
           onStatus: "5xx",
@@ -141,6 +142,8 @@ app.use(
 Example : {method} - {original-url} Failed with status code {status-code}
 Notification : GET - /abc/def/xyz Failed with status code 503
 ```
+
+`throttleMs` caps how often a given `notificationConfig` entry can fire — useful when a crash loop or traffic spike would otherwise spam the channel with one message per matching request. Repeats inside the window are silently counted and folded into the next message that's actually sent, e.g. `... Failed with status code 503 (+42 more since last alert)`.
 
 5. **Define your routes and start your server:**
 

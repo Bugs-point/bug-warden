@@ -20,6 +20,47 @@ function getCurrentTimestamp(): string {
   return now.toLocaleString("en-US", { hour12: true });
 }
 
+export interface NotificationThrottle {
+  /**
+   * Returns whether a notification for `key` should be sent right now, given a minimum
+   * interval of `throttleMs` since the last one that was actually sent for that key.
+   * Suppressed calls are counted and returned once the window reopens.
+   */
+  shouldNotify(
+    key: string,
+    throttleMs: number
+  ): { allowed: boolean; suppressedCount: number };
+}
+
+/**
+ * Creates an in-memory, per-key notification throttle. Intended to be created once per
+ * bugwarden() middleware instance so state persists across requests.
+ */
+export function createNotificationThrottle(): NotificationThrottle {
+  const lastSentAt = new Map<string, number>();
+  const suppressedCounts = new Map<string, number>();
+
+  return {
+    shouldNotify(key, throttleMs) {
+      if (!throttleMs) return { allowed: true, suppressedCount: 0 };
+
+      const now = Date.now();
+      const last = lastSentAt.get(key);
+
+      if (last === undefined || now - last >= throttleMs) {
+        const suppressedCount = suppressedCounts.get(key) ?? 0;
+        lastSentAt.set(key, now);
+        suppressedCounts.set(key, 0);
+        return { allowed: true, suppressedCount };
+      }
+
+      const suppressedCount = (suppressedCounts.get(key) ?? 0) + 1;
+      suppressedCounts.set(key, suppressedCount);
+      return { allowed: false, suppressedCount };
+    },
+  };
+}
+
 /**
  * Function to paint a text with color based on HTTP status code ranges.
  * @param {string} text - The text to be colored.
@@ -176,7 +217,8 @@ export async function processSlackNotification(
   timestamp: Date,
   elapsedTime: number,
   logger: BugwardenLogger = console.log,
-  requestId?: string
+  requestId?: string,
+  throttle?: NotificationThrottle
 ) {
   const originalUrl = req.route?.path || req.originalUrl;
   const statusCode = res.statusCode;
@@ -304,7 +346,18 @@ export async function processSlackNotification(
     }
 
     if (isStatusCodeIncluded && isEndpointIncluded) {
-      await postSlackNotification(webhookUrl, message, logger);
+      const throttleKey = `${config.routes}::${config.onStatus}::${config.message}`;
+      const { allowed, suppressedCount } = throttle
+        ? throttle.shouldNotify(throttleKey, slackConfiguration.throttleMs ?? 0)
+        : { allowed: true, suppressedCount: 0 };
+
+      if (allowed) {
+        const finalMessage =
+          suppressedCount > 0
+            ? `${message} (+${suppressedCount} more since last alert)`
+            : message;
+        await postSlackNotification(webhookUrl, finalMessage, logger);
+      }
     }
   }
 }

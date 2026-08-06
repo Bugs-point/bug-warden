@@ -52,4 +52,16 @@ export interface BugwardenSlackNotificationOptions {
   notificationConfig: BugwardenNotificationConfig[] & {
     0: BugwardenNotificationConfig;
   };
+
+  /**
+   * Minimum time (in milliseconds) between two notifications for the same notificationConfig
+   * entry. Repeats within the window are suppressed and folded into a "+N more since last
+   * alert" note on the next notification that's actually sent, instead of spamming Slack once
+   * per matching request. Omit (or 0) to send a notification on every match, unthrottled.
+   *
+   * @property {number} throttleMs
+   * @example
+   * 300000 // at most one alert per config every 5 minutes
+   */
+  throttleMs?: number;
 }

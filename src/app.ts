@@ -1,6 +1,11 @@
 import { randomUUID } from "crypto";
 import { NextFunction, Request, Response } from "express";
-import { isIgnoredRoute, processLog, processSlackNotification } from "./utility";
+import {
+  createNotificationThrottle,
+  isIgnoredRoute,
+  processLog,
+  processSlackNotification,
+} from "./utility";
 import { BugwardenOptions } from "./bugwarden_options";
 
 /**
@@ -16,6 +21,7 @@ import { BugwardenOptions } from "./bugwarden_options";
  */
 export function bugwarden(options?: BugwardenOptions) {
   const logger = options?.logger ?? console.log;
+  const notificationThrottle = createNotificationThrottle();
 
   return (req: Request, res: Response, next: NextFunction) => {
     const startTimeMS: number = Date.now();
@@ -48,7 +54,8 @@ export function bugwarden(options?: BugwardenOptions) {
           timestamp,
           elapsedTime,
           logger,
-          requestId
+          requestId,
+          notificationThrottle
         );
       }
     });

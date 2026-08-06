@@ -1,8 +1,9 @@
 import type { Request, Response } from "express";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   bugwardenLog,
   coloredLogs,
+  createNotificationThrottle,
   isIgnoredRoute,
   matchesRoute,
   processLog,
@@ -236,5 +237,70 @@ describe("bugwardenLog", () => {
     expect(customLogger).toHaveBeenCalledTimes(1);
     expect(customLogger.mock.calls[0][0]).toContain("hello");
     logSpy.mockRestore();
+  });
+});
+
+describe("createNotificationThrottle", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("always allows when throttleMs is 0 or omitted", () => {
+    const throttle = createNotificationThrottle();
+
+    expect(throttle.shouldNotify("key", 0)).toEqual({
+      allowed: true,
+      suppressedCount: 0,
+    });
+    expect(throttle.shouldNotify("key", 0)).toEqual({
+      allowed: true,
+      suppressedCount: 0,
+    });
+  });
+
+  it("suppresses repeats within the window and counts them", () => {
+    const throttle = createNotificationThrottle();
+
+    expect(throttle.shouldNotify("key", 1000)).toEqual({
+      allowed: true,
+      suppressedCount: 0,
+    });
+    expect(throttle.shouldNotify("key", 1000)).toEqual({
+      allowed: false,
+      suppressedCount: 1,
+    });
+    expect(throttle.shouldNotify("key", 1000)).toEqual({
+      allowed: false,
+      suppressedCount: 2,
+    });
+  });
+
+  it("allows again once the window elapses, reporting how many were suppressed", () => {
+    const throttle = createNotificationThrottle();
+
+    throttle.shouldNotify("key", 1000);
+    throttle.shouldNotify("key", 1000);
+    throttle.shouldNotify("key", 1000);
+
+    vi.advanceTimersByTime(1000);
+
+    expect(throttle.shouldNotify("key", 1000)).toEqual({
+      allowed: true,
+      suppressedCount: 2,
+    });
+  });
+
+  it("tracks separate keys independently", () => {
+    const throttle = createNotificationThrottle();
+
+    throttle.shouldNotify("a", 1000);
+    expect(throttle.shouldNotify("b", 1000)).toEqual({
+      allowed: true,
+      suppressedCount: 0,
+    });
   });
 });

@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { processSlackNotification } from "./utility";
+import { createNotificationThrottle, processSlackNotification } from "./utility";
 import type { BugwardenSlackNotificationOptions } from "./slack_notification_options";
 
 function createRequest(overrides: Partial<Request> = {}): Request {
@@ -285,5 +285,74 @@ describe("processSlackNotification", () => {
     expect(customLogger.mock.calls[0][0]).toContain(
       "Please provide a webhook URL"
     );
+  });
+
+  it("throttles repeated notifications for the same config and reports suppressed count", async () => {
+    vi.useFakeTimers();
+
+    const throttle = createNotificationThrottle();
+    const config: BugwardenSlackNotificationOptions = {
+      webhookUrl: "https://hooks.slack.com/test",
+      throttleMs: 60000,
+      notificationConfig: [
+        { routes: "all", onStatus: "5xx", message: "failed" },
+      ],
+    };
+
+    // First match sends immediately.
+    await processSlackNotification(
+      config,
+      createRequest(),
+      createResponse(503),
+      new Date(),
+      10,
+      console.log,
+      undefined,
+      throttle
+    );
+    // Two more within the window are suppressed.
+    await processSlackNotification(
+      config,
+      createRequest(),
+      createResponse(503),
+      new Date(),
+      10,
+      console.log,
+      undefined,
+      throttle
+    );
+    await processSlackNotification(
+      config,
+      createRequest(),
+      createResponse(503),
+      new Date(),
+      10,
+      console.log,
+      undefined,
+      throttle
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(60000);
+
+    // Window reopened: this one sends, and reports the two suppressed in between.
+    await processSlackNotification(
+      config,
+      createRequest(),
+      createResponse(503),
+      new Date(),
+      10,
+      console.log,
+      undefined,
+      throttle
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).text).toBe(
+      "failed (+2 more since last alert)"
+    );
+
+    vi.useRealTimers();
   });
 });
