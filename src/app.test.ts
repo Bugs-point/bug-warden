@@ -109,4 +109,32 @@ describe("bugwarden middleware", () => {
       expect.stringContaining("request-id: trace-me")
     );
   });
+
+  it("fires the generic webhook channel independently of Slack", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const app = express();
+    app.use(
+      bugwarden({
+        logging: false,
+        configureWebhookNotification: {
+          url: "https://example.com/webhook",
+          notificationConfig: [
+            { routes: "all", onStatus: "all", message: "hit" },
+          ],
+        },
+      })
+    );
+    app.get("/", (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    await request(app).get("/");
+    await flushFinishEvent();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://example.com/webhook");
+    vi.unstubAllGlobals();
+  });
 });

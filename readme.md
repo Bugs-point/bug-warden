@@ -145,7 +145,30 @@ Notification : GET - /abc/def/xyz Failed with status code 503
 
 `throttleMs` caps how often a given `notificationConfig` entry can fire — useful when a crash loop or traffic spike would otherwise spam the channel with one message per matching request. Repeats inside the window are silently counted and folded into the next message that's actually sent, e.g. `... Failed with status code 503 (+42 more since last alert)`.
 
-5. **Define your routes and start your server:**
+5. Not on Slack? Trigger a generic webhook notification instead (or alongside it)
+
+```javascript
+app.use(
+  bugwarden({
+    configureWebhookNotification: {
+      url: "<your webhook URL>",
+      throttleMs: 300000, // optional, same behavior as Slack's throttleMs
+      notificationConfig: [
+        {
+          onStatus: "5xx",
+          message:
+            {method} - {original-url} Failed with status code {status-code},
+          routes: "all",
+        },
+      ],
+    },
+  })
+);
+```
+
+Same `routes`, `onStatus`, `message`, and placeholder conventions as Slack notifications, but posts a plain `{ "message": "<templated message>" }` JSON body instead of Slack's `{ text }` envelope — useful for PagerDuty-style webhooks or your own internal services. `configureSlackNotification` and `configureWebhookNotification` can be used together; each has its own independent throttling.
+
+6. **Define your routes and start your server:**
 
 ```javascript
 app.get("/", (req, res) => {

@@ -5,6 +5,7 @@ import {
   isIgnoredRoute,
   processLog,
   processSlackNotification,
+  processWebhookNotification,
 } from "./utility";
 import { BugwardenOptions } from "./bugwarden_options";
 
@@ -21,7 +22,8 @@ import { BugwardenOptions } from "./bugwarden_options";
  */
 export function bugwarden(options?: BugwardenOptions) {
   const logger = options?.logger ?? console.log;
-  const notificationThrottle = createNotificationThrottle();
+  const slackNotificationThrottle = createNotificationThrottle();
+  const webhookNotificationThrottle = createNotificationThrottle();
 
   return (req: Request, res: Response, next: NextFunction) => {
     const startTimeMS: number = Date.now();
@@ -55,7 +57,21 @@ export function bugwarden(options?: BugwardenOptions) {
           elapsedTime,
           logger,
           requestId,
-          notificationThrottle
+          slackNotificationThrottle
+        );
+      }
+
+      /* Generic webhook notification processing */
+      if (options?.configureWebhookNotification) {
+        await processWebhookNotification(
+          options.configureWebhookNotification,
+          req,
+          res,
+          timestamp,
+          elapsedTime,
+          logger,
+          requestId,
+          webhookNotificationThrottle
         );
       }
     });

@@ -4,6 +4,7 @@ import { BugwardenLoggingOption } from "./types/bugwarden_logging_option";
 import { BugwardenLogParameterType } from "./bugwarden_log_property.enum";
 import { BugwardenSlackNotificationOptions } from "./slack_notification_options";
 import { BugwardenNotificationConfig } from "./notification_config";
+import { BugwardenWebhookNotificationOptions } from "./webhook_notification_options";
 import { BugwardenLogLevel } from "./types/log_level";
 import { BugwardenLogLevelColorsPalette } from "./bugwarden_log_level_color_palette";
 import { BugwardenLogger } from "./types/bugwarden_logger";
@@ -337,7 +338,7 @@ async function postJson(
       body: JSON.stringify(body),
     });
   } catch (e) {
-    bugwardenLog(`Cannot access ${channelLabel} webhook url:${e}`, "ERROR", logger);
+    bugwardenLog(`Cannot access ${channelLabel} url:${e}`, "ERROR", logger);
   }
 }
 
@@ -401,6 +402,70 @@ export async function processSlackNotification(
         ? `${message} (+${suppressedCount} more since last alert)`
         : message;
 
-    await postJson(webhookUrl, { text: finalMessage }, "slack", logger);
+    await postJson(webhookUrl, { text: finalMessage }, "slack webhook", logger);
+  }
+}
+
+export async function processWebhookNotification(
+  webhookConfiguration: BugwardenWebhookNotificationOptions,
+  req: Request,
+  res: Response,
+  timestamp: Date,
+  elapsedTime: number,
+  logger: BugwardenLogger = console.log,
+  requestId?: string,
+  throttle?: NotificationThrottle
+) {
+  const originalUrl = req.route?.path || req.originalUrl;
+  const statusCode = res.statusCode;
+
+  if (!webhookConfiguration.url?.length) {
+    bugwardenLog(
+      "Please provide a URL for sending webhook notification",
+      "LOG",
+      logger
+    );
+    return;
+  }
+  const url = webhookConfiguration.url;
+
+  for (const config of webhookConfiguration?.notificationConfig) {
+    if (
+      !config.message?.length ||
+      !config.onStatus?.length ||
+      !config.routes?.length
+    ) {
+      bugwardenLog(
+        "Config should include all <message> <routes> and <onStatus>",
+        "ERROR",
+        logger
+      );
+      break;
+    }
+
+    if (!matchesNotificationConfig(config, originalUrl, statusCode)) continue;
+
+    const throttleKey = `${config.routes}::${config.onStatus}::${config.message}`;
+    const { allowed, suppressedCount } = throttle
+      ? throttle.shouldNotify(throttleKey, webhookConfiguration.throttleMs ?? 0)
+      : { allowed: true, suppressedCount: 0 };
+
+    if (!allowed) continue;
+
+    const message = renderMessageTemplate(
+      config.message,
+      req,
+      res,
+      originalUrl,
+      timestamp,
+      elapsedTime,
+      requestId
+    );
+    const finalMessage =
+      suppressedCount > 0
+        ? `${message} (+${suppressedCount} more since last alert)`
+        : message;
+
+    await postJson(url, { message: finalMessage }, "webhook", logger);
   }
 }
