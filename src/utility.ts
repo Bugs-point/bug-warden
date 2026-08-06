@@ -159,8 +159,6 @@ export async function processSlackNotification(
 ) {
   const originalUrl = req.route?.path || req.originalUrl;
   const statusCode = res.statusCode;
-  let isStatusCodeIncluded: boolean = false;
-  let isEndpointIncluded: boolean = false;
 
   if (!slackConfiguration.webhookUrl?.length) {
     bugwardenLog("Please provide a webhook URL for sending slack notification");
@@ -169,6 +167,9 @@ export async function processSlackNotification(
   const webhookUrl = slackConfiguration.webhookUrl;
 
   for (const config of slackConfiguration?.notificationConfig) {
+    let isStatusCodeIncluded: boolean = false;
+    let isEndpointIncluded: boolean = false;
+
     if (
       !config.message?.length ||
       !config.onStatus?.length ||
