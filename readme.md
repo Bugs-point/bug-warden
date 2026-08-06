@@ -86,6 +86,8 @@ app.use(bugwarden({ format: "json" }));
 // {"ip":"::1","timestamp":"...","method":"GET","originalURL":"/","httpVersion":"HTTP/1.1","statusCode":200,"contentLength":12,"referrer":"-","userAgent":"...","responseTime":5}
 ```
 
+Every request also gets an `x-request-id` — reused from the incoming header if the client already sent one, otherwise generated — echoed back in the response and available as the `requestId` log field / `{request-id}` Slack message placeholder, so you can correlate a log line with the Slack alert it triggered.
+
 `ignore` accepts `"all"`, exact paths, or `"/prefix/*"` wildcards — same conventions as the Slack `routes` option below.
 
 4. Trigger slack notifications on specific status codes on any routes you want
@@ -135,6 +137,7 @@ app.use(
 {referer}
 {user-agent}
 {response-time}
+{request-id}
 Example : {method} - {original-url} Failed with status code {status-code}
 Notification : GET - /abc/def/xyz Failed with status code 503
 ```
@@ -181,20 +184,22 @@ app.listen(3002, () => {
 - Referrer
 - User-Agent
 - Response-Time
+- Request-Id
 
 ## Example Log Output
 
 ```yaml
-IP: ::1
-Timestamp: [Tue, 26 Dec 2023 12:00:00 GMT]
-Method: GET
-OriginalUrl: /
-HttpVersion: HTTP/1.1
-Status: 200
-Content-Length: 12
-Referrer: -
-User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36"
-Response-Time: 5ms
+ip: ::1
+timestamp: Tue, 26 Dec 2023 12:00:00 GMT
+method: GET
+original-url: /
+http-version: HTTP/1.1
+status-code: 200
+content-length: 12
+referer: -
+user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36"
+response-time: 5ms
+request-id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
 ```
 
 ## Customize to Your Logging Needs

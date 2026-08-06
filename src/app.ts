@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { NextFunction, Request, Response } from "express";
 import { isIgnoredRoute, processLog, processSlackNotification } from "./utility";
 import { BugwardenOptions } from "./bugwarden_options";
@@ -18,6 +19,9 @@ export function bugwarden(options?: BugwardenOptions) {
 
   return (req: Request, res: Response, next: NextFunction) => {
     const startTimeMS: number = Date.now();
+    const requestId = req.get("x-request-id") || randomUUID();
+    res.setHeader("x-request-id", requestId);
+
     res.on("finish", async () => {
       if (isIgnoredRoute(req.originalUrl, options?.ignore)) return;
 
@@ -28,7 +32,8 @@ export function bugwarden(options?: BugwardenOptions) {
         res,
         elapsedTime,
         options?.logging,
-        options?.format
+        options?.format,
+        requestId
       );
 
       /* Log processing */
@@ -42,7 +47,8 @@ export function bugwarden(options?: BugwardenOptions) {
           res,
           timestamp,
           elapsedTime,
-          logger
+          logger,
+          requestId
         );
       }
     });

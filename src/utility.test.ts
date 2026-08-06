@@ -163,6 +163,25 @@ describe("processLog", () => {
 
     expect(processLog(req, res, 3, false, "json")).toBe("");
   });
+
+  it("includes requestId when provided", () => {
+    const req = createRequest();
+    const res = createResponse();
+
+    const textLog = processLog(req, res, 1, ["requestId"], "text", "abc-123");
+    expect(textLog).toContain("request-id: abc-123");
+
+    const jsonLog = processLog(req, res, 1, ["requestId"], "json", "abc-123");
+    expect(JSON.parse(jsonLog)).toEqual({ requestId: "abc-123" });
+  });
+
+  it("omits requestId when it isn't provided", () => {
+    const req = createRequest();
+    const res = createResponse();
+
+    expect(processLog(req, res, 1, ["requestId"], "text")).toBe("");
+    expect(processLog(req, res, 1, ["requestId"], "json")).toBe("");
+  });
 });
 
 describe("matchesRoute", () => {

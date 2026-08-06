@@ -9,4 +9,5 @@ export enum BugwardenLogParameterType {
   REFERRER = "referer",
   USER_AGENT = "user-agent",
   RESPONSE_TIME = "response-time",
+  REQUEST_ID = "request-id",
 }

@@ -156,6 +156,37 @@ describe("processSlackNotification", () => {
     expect(JSON.parse(options.body).text).toBe("took 42ms");
   });
 
+  it("substitutes {request-id} when a requestId is passed, falls back to '-' otherwise", async () => {
+    const config: BugwardenSlackNotificationOptions = {
+      webhookUrl: "https://hooks.slack.com/test",
+      notificationConfig: [
+        { routes: "all", onStatus: "all", message: "trace: {request-id}" },
+      ],
+    };
+
+    await processSlackNotification(
+      config,
+      createRequest(),
+      createResponse(200),
+      new Date(),
+      10,
+      console.log,
+      "req-42"
+    );
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).text).toBe(
+      "trace: req-42"
+    );
+
+    await processSlackNotification(
+      config,
+      createRequest(),
+      createResponse(200),
+      new Date(),
+      10
+    );
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).text).toBe("trace: -");
+  });
+
   it("matches an exact status code", async () => {
     const config: BugwardenSlackNotificationOptions = {
       webhookUrl: "https://hooks.slack.com/test",

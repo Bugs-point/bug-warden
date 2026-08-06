@@ -86,6 +86,7 @@ const ALL_LOG_FIELD_KEYS: LogFieldKey[] = [
   "referrer",
   "userAgent",
   "responseTime",
+  "requestId",
 ];
 
 const LOG_FIELD_LABELS: Record<LogFieldKey, string> = {
@@ -99,12 +100,14 @@ const LOG_FIELD_LABELS: Record<LogFieldKey, string> = {
   referrer: BugwardenLogParameterType.REFERRER,
   userAgent: BugwardenLogParameterType.USER_AGENT,
   responseTime: BugwardenLogParameterType.RESPONSE_TIME,
+  requestId: BugwardenLogParameterType.REQUEST_ID,
 };
 
 function collectLogFields(
   req: Request,
   res: Response,
-  elapsedTime: number
+  elapsedTime: number,
+  requestId?: string
 ): Record<LogFieldKey, string | number | undefined> {
   return {
     ip: req.ip,
@@ -117,6 +120,7 @@ function collectLogFields(
     referrer: req.get("referrer") || "-",
     userAgent: req.get("user-agent"),
     responseTime: elapsedTime,
+    requestId,
   };
 }
 
@@ -128,6 +132,7 @@ function collectLogFields(
  * @param elapsedTime - A timestamp representing the start time of the request processing.
  * @param logging - Optional configuration for customizing the log output. Can be a boolean or an array of log properties.
  * @param format - "text" (default) for the colored human-readable format, or "json" for a single-line JSON object.
+ * @param requestId - Optional correlation ID (from the incoming x-request-id header, or generated) to include in the log.
  * @returns A formatted log line containing relevant information based on the provided options.
  */
 export function processLog(
@@ -135,25 +140,26 @@ export function processLog(
   res: Response,
   elapsedTime: number,
   logging?: BugwardenLoggingOption,
-  format: BugwardenLogFormat = "text"
+  format: BugwardenLogFormat = "text",
+  requestId?: string
 ): string {
   if (logging === false) return "";
 
   const selectedKeys = Array.isArray(logging) ? logging : ALL_LOG_FIELD_KEYS;
   if (!selectedKeys.length) return "";
 
-  const fields = collectLogFields(req, res, elapsedTime);
+  const fields = collectLogFields(req, res, elapsedTime, requestId);
 
   if (format === "json") {
     const jsonLog: Record<string, string | number | undefined> = {};
     for (const key of selectedKeys) {
-      if (key in fields) jsonLog[key] = fields[key];
+      if (fields[key] !== undefined) jsonLog[key] = fields[key];
     }
     return Object.keys(jsonLog).length ? JSON.stringify(jsonLog) : "";
   }
 
   const lines = selectedKeys
-    .filter((key) => key in fields)
+    .filter((key) => fields[key] !== undefined)
     .map((key) => {
       const value = key === "responseTime" ? `${fields[key]}ms` : fields[key];
       return `${LOG_FIELD_LABELS[key]}: ${value}`;
@@ -169,7 +175,8 @@ export async function processSlackNotification(
   res: Response,
   timestamp: Date,
   elapsedTime: number,
-  logger: BugwardenLogger = console.log
+  logger: BugwardenLogger = console.log,
+  requestId?: string
 ) {
   const originalUrl = req.route?.path || req.originalUrl;
   const statusCode = res.statusCode;
@@ -228,6 +235,10 @@ export async function processSlackNotification(
       .replace(
         `{${BugwardenLogParameterType.USER_AGENT}}`,
         `${req.get("user-agent")}`
+      )
+      .replace(
+        `{${BugwardenLogParameterType.REQUEST_ID}}`,
+        `${requestId ?? "-"}`
       );
 
     // Matching status code
