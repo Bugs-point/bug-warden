@@ -208,7 +208,7 @@ export async function processSlackNotification(
       );
 
     // Matching status code
-    if (routes.includes("all")) {
+    if (onStatuses.includes("all")) {
       isStatusCodeIncluded = true;
     } else {
       for (const status of onStatuses) {
