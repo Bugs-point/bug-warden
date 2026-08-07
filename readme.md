@@ -22,9 +22,10 @@ BugWarden is an npm package designed to make your Express.js application's loggi
 | Colored status-code output | ✅ | Via custom format | Depends on transport | ❌ |
 | Slack alerts on status code + route, zero config | ✅ | ❌ | ❌ | Via separate integration |
 | Requires an external account/service | No | No | No | Yes |
-| Captures error stack traces | Not yet | ❌ | General-purpose logger | ✅ |
+| Captures error stack traces | ✅ | ❌ | General-purpose logger | ✅ |
+| Works with just env vars, no code config | ✅ | ❌ | ❌ | ❌ |
 
-BugWarden isn't trying to replace full error-tracking platforms like Sentry — think of it as Morgan-style request logging with Slack alerting built in, for teams who want a signal in their team chat without standing up another service. Stack-trace capture is on the roadmap.
+BugWarden isn't trying to replace full error-tracking platforms like Sentry — think of it as Morgan-style request logging with Slack/Discord/webhook alerting built in, for teams who want a signal in their team chat without standing up another service.
 
 ## Installation
 
@@ -41,12 +42,12 @@ npm install bugwarden
 ```javascript
 // Common JS method
 const express = require("express");
-const { bugwarden } = require("bugwarden");
+const { bugwarden, bugwardenErrorHandler } = require("bugwarden");
 const app = express();
 
 // ES Module method
 import express from "express";
-import { bugwarden } from "bugwarden";
+import { bugwarden, bugwardenErrorHandler } from "bugwarden";
 const app = express();
 ```
 
@@ -198,7 +199,52 @@ app.use(
 
 Create a Discord webhook under a channel's **Settings > Integrations > Webhooks**. Same `routes`/`onStatus`/`message` conventions again, posting Discord's `{ content }` body shape. Can be combined with `configureSlackNotification` and/or `configureWebhookNotification` — all three run independently with their own throttling.
 
-7. **Define your routes and start your server:**
+7. Catch thrown errors and stack traces, not just status codes
+
+`bugwarden()` reports on the *response* a route produced. `bugwardenErrorHandler()` reports on errors *thrown* by a route (or passed to `next(err)`), including the stack trace — mount it after your routes (and after `bugwarden()`, if you use both):
+
+```javascript
+app.use(bugwarden());
+
+app.get("/", (req, res) => {
+  throw new Error("something broke");
+});
+
+// Must be registered after your routes, like any Express error-handling middleware
+app.use(
+  bugwardenErrorHandler({
+    configureSlackNotification: {
+      webhookUrl: "<webhook URL>",
+      notificationConfig: [
+        {
+          onStatus: "all",
+          routes: "all",
+          message: "🐛 {method} {original-url} threw: {error-message}\n{error-stack}",
+        },
+      ],
+    },
+  })
+);
+```
+
+It's non-intrusive: it logs, fires notifications, then always calls `next(err)` so your own error-response logic still runs — it never sends a response itself. Two new message placeholders are available here: `{error-message}` and `{error-stack}`. The response status is taken from `err.status`/`err.statusCode` when present, falling back to `500`. It accepts the exact same `BugwardenOptions` shape as `bugwarden()` (`logging`, `format`, `logger`, `configureSlackNotification`, `configureWebhookNotification`, `configureDiscordNotification`), so error alerts can go to their own channel/message, separate from request alerts. If you only imported `bugwarden`, it's also available as `bugwarden.errorHandler(options)`.
+
+8. Zero-config mode: no code, just environment variables
+
+If you'd rather not touch your app code at all, set one of these and `app.use(bugwarden())` / `app.use(bugwardenErrorHandler())` start alerting on their own, using sensible defaults (`onStatus: "4xx,5xx"`, `routes: "all"`):
+
+```bash
+BUGWARDEN_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+BUGWARDEN_DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+BUGWARDEN_WEBHOOK_URL=https://your.internal/webhook
+BUGWARDEN_THROTTLE_MS=300000       # optional, applied to zero-config channels
+BUGWARDEN_NOTIFY_ON=4xx,5xx        # optional, overrides the default onStatus
+BUGWARDEN_NOTIFY_ROUTES=all        # optional, overrides the default routes
+```
+
+Any channel you configure explicitly in code always wins — the env vars only fill in channels you haven't already set up yourself, so zero-config and code-based config can be mixed freely (e.g. Slack from code, Discord from an env var).
+
+9. **Define your routes and start your server:**
 
 ```javascript
 app.get("/", (req, res) => {
@@ -241,6 +287,7 @@ app.listen(3002, () => {
 - User-Agent
 - Response-Time
 - Request-Id
+- Error-Message / Error-Stack (via `bugwardenErrorHandler`)
 
 ## Example Log Output
 

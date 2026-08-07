@@ -9,6 +9,11 @@ import {
   processWebhookNotification,
 } from "./utility";
 import { BugwardenOptions } from "./bugwarden_options";
+import { setRequestId, setRequestStartTime } from "./request_context";
+import { resolveZeroConfigOptions } from "./zero_config";
+import { bugwardenErrorHandler } from "./error_handler";
+
+export { bugwardenErrorHandler };
 
 /**
  * BugWarden middleware logs details of incoming HTTP requests and their corresponding responses,
@@ -22,7 +27,8 @@ import { BugwardenOptions } from "./bugwarden_options";
  * @returns void
  */
 export function bugwarden(options?: BugwardenOptions) {
-  const logger = options?.logger ?? console.log;
+  const resolvedOptions = resolveZeroConfigOptions(options);
+  const logger = resolvedOptions.logger ?? console.log;
   const slackNotificationThrottle = createNotificationThrottle();
   const webhookNotificationThrottle = createNotificationThrottle();
   const discordNotificationThrottle = createNotificationThrottle();
@@ -31,9 +37,11 @@ export function bugwarden(options?: BugwardenOptions) {
     const startTimeMS: number = Date.now();
     const requestId = req.get("x-request-id") || randomUUID();
     res.setHeader("x-request-id", requestId);
+    setRequestStartTime(req, startTimeMS);
+    setRequestId(req, requestId);
 
     let capturedResponseBody: string | undefined;
-    const maxResponseBodyChars = options?.captureResponseBody;
+    const maxResponseBodyChars = resolvedOptions.captureResponseBody;
 
     if (maxResponseBodyChars) {
       const originalSend = res.send.bind(res);
@@ -50,7 +58,7 @@ export function bugwarden(options?: BugwardenOptions) {
     }
 
     res.on("finish", async () => {
-      if (isIgnoredRoute(req.originalUrl, options?.ignore)) return;
+      if (isIgnoredRoute(req.originalUrl, resolvedOptions.ignore)) return;
 
       const elapsedTime = Date.now() - startTimeMS;
       const timestamp = new Date();
@@ -58,8 +66,8 @@ export function bugwarden(options?: BugwardenOptions) {
         req,
         res,
         elapsedTime,
-        options?.logging,
-        options?.format,
+        resolvedOptions.logging,
+        resolvedOptions.format,
         requestId,
         capturedResponseBody
       );
@@ -68,9 +76,9 @@ export function bugwarden(options?: BugwardenOptions) {
       if (allowedAppLogs) logger(allowedAppLogs);
 
       /* Slack notification processing */
-      if (options?.configureSlackNotification) {
+      if (resolvedOptions.configureSlackNotification) {
         await processSlackNotification(
-          options.configureSlackNotification,
+          resolvedOptions.configureSlackNotification,
           req,
           res,
           timestamp,
@@ -83,9 +91,9 @@ export function bugwarden(options?: BugwardenOptions) {
       }
 
       /* Generic webhook notification processing */
-      if (options?.configureWebhookNotification) {
+      if (resolvedOptions.configureWebhookNotification) {
         await processWebhookNotification(
-          options.configureWebhookNotification,
+          resolvedOptions.configureWebhookNotification,
           req,
           res,
           timestamp,
@@ -98,9 +106,9 @@ export function bugwarden(options?: BugwardenOptions) {
       }
 
       /* Discord notification processing */
-      if (options?.configureDiscordNotification) {
+      if (resolvedOptions.configureDiscordNotification) {
         await processDiscordNotification(
-          options.configureDiscordNotification,
+          resolvedOptions.configureDiscordNotification,
           req,
           res,
           timestamp,
@@ -115,3 +123,9 @@ export function bugwarden(options?: BugwardenOptions) {
     next();
   };
 }
+
+/**
+ * Convenience alias for bugwardenErrorHandler, so callers who only imported `bugwarden`
+ * can wire up error handling too: `app.use(bugwarden.errorHandler(options))`.
+ */
+bugwarden.errorHandler = bugwardenErrorHandler;

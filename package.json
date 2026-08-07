@@ -54,7 +54,11 @@
     "debugging",
     "error-handling",
     "api-monitoring",
-    "real-time-alerts"
+    "real-time-alerts",
+    "error-handler-middleware",
+    "uncaught-exceptions",
+    "zero-config",
+    "crash-reporting"
   ],
   "devDependencies": {
     "@changesets/cli": "^2.27.1",

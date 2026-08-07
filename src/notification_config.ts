@@ -45,6 +45,10 @@ export interface BugwardenNotificationConfig {
    * - "{referer}"
    * - "{user-agent}"
    * - "{response-time}"
+   * - "{request-id}"
+   * - "{response-body}"
+   * - "{error-message}" (only meaningful with bugwardenErrorHandler)
+   * - "{error-stack}" (only meaningful with bugwardenErrorHandler)
    */
   message: string;
 }

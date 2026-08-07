@@ -11,4 +11,6 @@ export enum BugwardenLogParameterType {
   RESPONSE_TIME = "response-time",
   REQUEST_ID = "request-id",
   RESPONSE_BODY = "response-body",
+  ERROR_MESSAGE = "error-message",
+  ERROR_STACK = "error-stack",
 }
