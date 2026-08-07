@@ -15,20 +15,6 @@ BugWarden is an npm package designed to make your Express.js application's loggi
 - **Slack alerts** triggered by HTTP status code and route, with no separate account or service to sign up for
 - **A local dashboard** (`bugwarden/dashboard`) for recent requests, status trends, and slowest routes — no external service
 
-## Why BugWarden?
-
-| | BugWarden | Morgan | Winston | Sentry |
-|---|---|---|---|---|
-| Express request/response logging | ✅ | ✅ | Manual setup | ❌ |
-| Colored status-code output | ✅ | Via custom format | Depends on transport | ❌ |
-| Slack alerts on status code + route, zero config | ✅ | ❌ | ❌ | Via separate integration |
-| Requires an external account/service | No | No | No | Yes |
-| Captures error stack traces | ✅ | ❌ | General-purpose logger | ✅ |
-| Works with just env vars, no code config | ✅ | ❌ | ❌ | ❌ |
-| Built-in local dashboard UI | ✅ | ❌ | ❌ | Hosted (external) |
-
-BugWarden isn't trying to replace full error-tracking platforms like Sentry — think of it as Morgan-style request logging with Slack/Discord/webhook alerting built in, for teams who want a signal in their team chat without standing up another service.
-
 ## Installation
 
 To install BugWarden, use npm:
