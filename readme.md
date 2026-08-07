@@ -11,7 +11,7 @@ BugWarden is an npm package designed to make your Express.js application's loggi
 
 - **Colorful status code indications** for easy log scanning
 - **Detailed request-response logs**, including response times
-- **Middleware integration** for effortless tracking of HTTP activity, for Express or Fastify (`bugwarden/fastify`)
+- **Middleware integration** for effortless tracking of HTTP activity, for Express, Fastify (`bugwarden/fastify`), or Koa (`bugwarden/koa`)
 - **Slack alerts** triggered by HTTP status code and route, with no separate account or service to sign up for
 
 ## Why BugWarden?
@@ -291,7 +291,39 @@ app.listen({ port: 3002 });
 
 It logs and fires notifications on `onResponse` for normal traffic, and on `onError` for thrown/forwarded errors (with `{error-message}`/`{error-stack}` available, same as `bugwardenErrorHandler`) — a request that errors is only reported once, via the error path, not twice.
 
-11. **Define your routes and start your server:**
+11. On Koa instead? Same idea, as Koa middleware
+
+`bugwarden/koa` exports a Koa middleware with the same options and behavior. Koa's own `try { await next() } catch {}` onion model means one middleware naturally covers both a normal response and an error — register it early so it wraps everything downstream. Requires `koa` (v2+) as a peer dependency.
+
+```javascript
+const Koa = require("koa");
+const { bugwardenKoa } = require("bugwarden/koa");
+// ESM: import { bugwardenKoa } from "bugwarden/koa";
+
+const app = new Koa();
+
+app.use(
+  bugwardenKoa({
+    logging: true,
+    configureSlackNotification: {
+      webhookUrl: "<webhook URL>",
+      notificationConfig: [
+        { onStatus: "5xx", routes: "all", message: "{method} {original-url} failed: {error-message}" },
+      ],
+    },
+  })
+);
+
+app.use((ctx) => {
+  ctx.body = { hello: "world" };
+});
+
+app.listen(3002);
+```
+
+Thrown errors are logged/notified with `{error-message}`/`{error-stack}`, then rethrown so Koa's own `app.on("error", ...)` and any error-handling middleware you already have keep working unchanged.
+
+12. **Define your routes and start your server:**
 
 ```javascript
 app.get("/", (req, res) => {
