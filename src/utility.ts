@@ -3,7 +3,10 @@ import { BugwardenLogProperties } from "./bugwarden_log_properties";
 import { BugwardenLoggingOption } from "./types/bugwarden_logging_option";
 import { BugwardenLogParameterType } from "./bugwarden_log_property.enum";
 import { BugwardenSlackNotificationOptions } from "./slack_notification_options";
-import { BugwardenNotificationConfig } from "./notification_config";
+import {
+  BugwardenGroupByField,
+  BugwardenNotificationConfig,
+} from "./notification_config";
 import { BugwardenWebhookNotificationOptions } from "./webhook_notification_options";
 import { BugwardenDiscordNotificationOptions } from "./discord_notification_options";
 import { BugwardenLogLevel } from "./types/log_level";
@@ -27,12 +30,14 @@ export interface NotificationThrottle {
   /**
    * Returns whether a notification for `key` should be sent right now, given a minimum
    * interval of `throttleMs` since the last one that was actually sent for that key.
-   * Suppressed calls are counted and returned once the window reopens.
+   * Suppressed calls are counted and returned once the window reopens. `occurrenceCount`
+   * is a running total of every call made for `key` (allowed or suppressed) since this
+   * throttle was created, regardless of `throttleMs`.
    */
   shouldNotify(
     key: string,
     throttleMs: number
-  ): { allowed: boolean; suppressedCount: number };
+  ): { allowed: boolean; suppressedCount: number; occurrenceCount: number };
 }
 
 /**
@@ -42,10 +47,14 @@ export interface NotificationThrottle {
 export function createNotificationThrottle(): NotificationThrottle {
   const lastSentAt = new Map<string, number>();
   const suppressedCounts = new Map<string, number>();
+  const occurrenceCounts = new Map<string, number>();
 
   return {
     shouldNotify(key, throttleMs) {
-      if (!throttleMs) return { allowed: true, suppressedCount: 0 };
+      const occurrenceCount = (occurrenceCounts.get(key) ?? 0) + 1;
+      occurrenceCounts.set(key, occurrenceCount);
+
+      if (!throttleMs) return { allowed: true, suppressedCount: 0, occurrenceCount };
 
       const now = Date.now();
       const last = lastSentAt.get(key);
@@ -54,12 +63,12 @@ export function createNotificationThrottle(): NotificationThrottle {
         const suppressedCount = suppressedCounts.get(key) ?? 0;
         lastSentAt.set(key, now);
         suppressedCounts.set(key, 0);
-        return { allowed: true, suppressedCount };
+        return { allowed: true, suppressedCount, occurrenceCount };
       }
 
       const suppressedCount = (suppressedCounts.get(key) ?? 0) + 1;
       suppressedCounts.set(key, suppressedCount);
-      return { allowed: false, suppressedCount };
+      return { allowed: false, suppressedCount, occurrenceCount };
     },
   };
 }
@@ -307,6 +316,43 @@ function matchesNotificationConfig(
   return isStatusCodeIncluded && isEndpointIncluded;
 }
 
+const DEFAULT_GROUP_BY: BugwardenGroupByField[] = ["route", "statusCode"];
+
+/**
+ * Computes the throttle/grouping key for a matched notificationConfig. Combines the
+ * config's own identity (routes/onStatus/message) with the actual runtime values of its
+ * `groupBy` fields (default: route + statusCode), so that a single wildcard config (e.g.
+ * routes: "all") doesn't lump unrelated incidents on different routes or status codes into
+ * one throttle bucket, while still keeping unrelated configs independent of each other.
+ */
+function computeThrottleKey(
+  config: BugwardenNotificationConfig,
+  originalUrl: string,
+  req: Request,
+  res: Response,
+  error?: Error
+): string {
+  const configIdentity = `${config.routes}::${config.onStatus}::${config.message}`;
+  const groupByFields = config.groupBy?.length ? config.groupBy : DEFAULT_GROUP_BY;
+
+  const groupKey = groupByFields
+    .map((field) => {
+      switch (field) {
+        case "route":
+          return `route=${originalUrl}`;
+        case "method":
+          return `method=${req.method}`;
+        case "statusCode":
+          return `statusCode=${res.statusCode}`;
+        case "errorMessage":
+          return `errorMessage=${error?.message ?? "-"}`;
+      }
+    })
+    .join("|");
+
+  return `${configIdentity}::${groupKey}`;
+}
+
 /**
  * Substitutes {ip}, {timestamp}, {method}, etc. placeholders in a notification message
  * template with values from the current request/response.
@@ -320,7 +366,8 @@ function renderMessageTemplate(
   elapsedTime: number,
   requestId?: string,
   responseBody?: string,
-  error?: Error
+  error?: Error,
+  occurrenceCount?: number
 ): string {
   return template
     .replace(`{${BugwardenLogParameterType.IP}}`, `${req?.ip}`)
@@ -348,7 +395,11 @@ function renderMessageTemplate(
       `{${BugwardenLogParameterType.ERROR_MESSAGE}}`,
       `${error?.message ?? "-"}`
     )
-    .replace(`{${BugwardenLogParameterType.ERROR_STACK}}`, `${error?.stack ?? "-"}`);
+    .replace(`{${BugwardenLogParameterType.ERROR_STACK}}`, `${error?.stack ?? "-"}`)
+    .replace(
+      `{${BugwardenLogParameterType.OCCURRENCE_COUNT}}`,
+      `${occurrenceCount ?? 1}`
+    );
 }
 
 async function postJson(
@@ -411,10 +462,10 @@ export async function processSlackNotification(
 
     if (!matchesNotificationConfig(config, originalUrl, statusCode)) continue;
 
-    const throttleKey = `${config.routes}::${config.onStatus}::${config.message}`;
-    const { allowed, suppressedCount } = throttle
+    const throttleKey = computeThrottleKey(config, originalUrl, req, res, error);
+    const { allowed, suppressedCount, occurrenceCount } = throttle
       ? throttle.shouldNotify(throttleKey, slackConfiguration.throttleMs ?? 0)
-      : { allowed: true, suppressedCount: 0 };
+      : { allowed: true, suppressedCount: 0, occurrenceCount: 1 };
 
     if (!allowed) continue;
 
@@ -427,7 +478,8 @@ export async function processSlackNotification(
       elapsedTime,
       requestId,
       responseBody,
-      error
+      error,
+      occurrenceCount
     );
     const finalMessage =
       suppressedCount > 0
@@ -479,10 +531,10 @@ export async function processWebhookNotification(
 
     if (!matchesNotificationConfig(config, originalUrl, statusCode)) continue;
 
-    const throttleKey = `${config.routes}::${config.onStatus}::${config.message}`;
-    const { allowed, suppressedCount } = throttle
+    const throttleKey = computeThrottleKey(config, originalUrl, req, res, error);
+    const { allowed, suppressedCount, occurrenceCount } = throttle
       ? throttle.shouldNotify(throttleKey, webhookConfiguration.throttleMs ?? 0)
-      : { allowed: true, suppressedCount: 0 };
+      : { allowed: true, suppressedCount: 0, occurrenceCount: 1 };
 
     if (!allowed) continue;
 
@@ -495,7 +547,8 @@ export async function processWebhookNotification(
       elapsedTime,
       requestId,
       responseBody,
-      error
+      error,
+      occurrenceCount
     );
     const finalMessage =
       suppressedCount > 0
@@ -547,10 +600,10 @@ export async function processDiscordNotification(
 
     if (!matchesNotificationConfig(config, originalUrl, statusCode)) continue;
 
-    const throttleKey = `${config.routes}::${config.onStatus}::${config.message}`;
-    const { allowed, suppressedCount } = throttle
+    const throttleKey = computeThrottleKey(config, originalUrl, req, res, error);
+    const { allowed, suppressedCount, occurrenceCount } = throttle
       ? throttle.shouldNotify(throttleKey, discordConfiguration.throttleMs ?? 0)
-      : { allowed: true, suppressedCount: 0 };
+      : { allowed: true, suppressedCount: 0, occurrenceCount: 1 };
 
     if (!allowed) continue;
 
@@ -563,7 +616,8 @@ export async function processDiscordNotification(
       elapsedTime,
       requestId,
       responseBody,
-      error
+      error,
+      occurrenceCount
     );
     const finalMessage =
       suppressedCount > 0

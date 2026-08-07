@@ -355,4 +355,116 @@ describe("processSlackNotification", () => {
 
     vi.useRealTimers();
   });
+
+  it("groups by route+statusCode by default, so a wildcard config throttles each route independently", async () => {
+    vi.useFakeTimers();
+
+    const throttle = createNotificationThrottle();
+    const config: BugwardenSlackNotificationOptions = {
+      webhookUrl: "https://hooks.slack.com/test",
+      throttleMs: 60000,
+      notificationConfig: [{ routes: "all", onStatus: "5xx", message: "failed" }],
+    };
+
+    await processSlackNotification(
+      config,
+      createRequest({ originalUrl: "/api/users" }),
+      createResponse(503),
+      new Date(),
+      10,
+      console.log,
+      undefined,
+      throttle
+    );
+    // Different route matching the same wildcard config: not suppressed, since it's a
+    // distinct incident by default (route + statusCode) grouping.
+    await processSlackNotification(
+      config,
+      createRequest({ originalUrl: "/api/orders" }),
+      createResponse(503),
+      new Date(),
+      10,
+      console.log,
+      undefined,
+      throttle
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it("honors a custom groupBy to widen or narrow what counts as the same alert", async () => {
+    vi.useFakeTimers();
+
+    const throttle = createNotificationThrottle();
+    const config: BugwardenSlackNotificationOptions = {
+      webhookUrl: "https://hooks.slack.com/test",
+      throttleMs: 60000,
+      notificationConfig: [
+        { routes: "all", onStatus: "5xx", message: "failed", groupBy: ["statusCode"] },
+      ],
+    };
+
+    await processSlackNotification(
+      config,
+      createRequest({ originalUrl: "/api/users" }),
+      createResponse(503),
+      new Date(),
+      10,
+      console.log,
+      undefined,
+      throttle
+    );
+    // Same statusCode, different route: grouped together (and thus suppressed) because
+    // groupBy only considers statusCode here.
+    await processSlackNotification(
+      config,
+      createRequest({ originalUrl: "/api/orders" }),
+      createResponse(503),
+      new Date(),
+      10,
+      console.log,
+      undefined,
+      throttle
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
+  });
+
+  it("substitutes {occurrence-count} with the running total for the group", async () => {
+    const throttle = createNotificationThrottle();
+    const config: BugwardenSlackNotificationOptions = {
+      webhookUrl: "https://hooks.slack.com/test",
+      notificationConfig: [
+        { routes: "all", onStatus: "all", message: "Seen {occurrence-count} times" },
+      ],
+    };
+
+    await processSlackNotification(
+      config,
+      createRequest(),
+      createResponse(500),
+      new Date(),
+      10,
+      console.log,
+      undefined,
+      throttle
+    );
+    await processSlackNotification(
+      config,
+      createRequest(),
+      createResponse(500),
+      new Date(),
+      10,
+      console.log,
+      undefined,
+      throttle
+    );
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).text).toBe("Seen 1 times");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).text).toBe("Seen 2 times");
+  });
 });

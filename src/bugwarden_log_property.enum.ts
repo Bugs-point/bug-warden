@@ -13,4 +13,5 @@ export enum BugwardenLogParameterType {
   RESPONSE_BODY = "response-body",
   ERROR_MESSAGE = "error-message",
   ERROR_STACK = "error-stack",
+  OCCURRENCE_COUNT = "occurrence-count",
 }

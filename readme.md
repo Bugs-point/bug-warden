@@ -11,7 +11,7 @@ BugWarden is an npm package designed to make your Express.js application's loggi
 
 - **Colorful status code indications** for easy log scanning
 - **Detailed request-response logs**, including response times
-- **Middleware integration** for effortless tracking of HTTP activity
+- **Middleware integration** for effortless tracking of HTTP activity, for Express or Fastify (`bugwarden/fastify`)
 - **Slack alerts** triggered by HTTP status code and route, with no separate account or service to sign up for
 
 ## Why BugWarden?
@@ -147,11 +147,28 @@ app.use(
 {response-time}
 {request-id}
 {response-body}
+{error-message} // only meaningful with bugwardenErrorHandler
+{error-stack}   // only meaningful with bugwardenErrorHandler
+{occurrence-count} // total times this alert group has matched, including suppressed ones
 Example : {method} - {original-url} Failed with status code {status-code}
 Notification : GET - /abc/def/xyz Failed with status code 503
 ```
 
 `throttleMs` caps how often a given `notificationConfig` entry can fire — useful when a crash loop or traffic spike would otherwise spam the channel with one message per matching request. Repeats inside the window are silently counted and folded into the next message that's actually sent, e.g. `... Failed with status code 503 (+42 more since last alert)`.
+
+By default, throttling and `{occurrence-count}` group events by **route + status code**, not just by which `notificationConfig` entry matched. This matters for wildcard configs: without it, a single `routes: "all"` config would lump an outage on `/api/users` together with an unrelated one on `/api/orders` into the same throttle bucket, silently dropping alerts about the second incident. Override this with `groupBy` on a per-config basis:
+
+```javascript
+{
+  onStatus: "5xx",
+  routes: "all",
+  message: "{method} {original-url} failing ({occurrence-count} times so far)",
+  groupBy: ["route", "statusCode"], // default — track each route/status combination separately
+  // groupBy: ["route"],                          // ignore status code, group purely by endpoint
+  // groupBy: ["route", "statusCode", "errorMessage"], // with bugwardenErrorHandler: only
+  //                                                       collapse repeats of the exact same error
+}
+```
 
 5. Not on Slack? Trigger a generic webhook notification instead (or alongside it)
 
@@ -244,7 +261,37 @@ BUGWARDEN_NOTIFY_ROUTES=all        # optional, overrides the default routes
 
 Any channel you configure explicitly in code always wins — the env vars only fill in channels you haven't already set up yourself, so zero-config and code-based config can be mixed freely (e.g. Slack from code, Discord from an env var).
 
-9. **Define your routes and start your server:**
+10. Not on Express? Use the Fastify plugin instead
+
+`bugwarden/fastify` is a separate entry point exporting a Fastify plugin with the same options, logging output, and notification channels as `bugwarden()` + `bugwardenErrorHandler()` combined into one registration (Fastify's hook lifecycle doesn't need two separate ones). Requires `fastify` (v4 or v5) as a peer dependency — install it yourself if you don't already have it.
+
+```javascript
+const Fastify = require("fastify");
+const { bugwardenFastify } = require("bugwarden/fastify");
+// ESM: import { bugwardenFastify } from "bugwarden/fastify";
+
+const app = Fastify();
+
+app.register(
+  bugwardenFastify({
+    logging: true,
+    configureSlackNotification: {
+      webhookUrl: "<webhook URL>",
+      notificationConfig: [
+        { onStatus: "5xx", routes: "all", message: "{method} {original-url} failed: {error-message}" },
+      ],
+    },
+  })
+);
+
+app.get("/", async (req, reply) => ({ hello: "world" }));
+
+app.listen({ port: 3002 });
+```
+
+It logs and fires notifications on `onResponse` for normal traffic, and on `onError` for thrown/forwarded errors (with `{error-message}`/`{error-stack}` available, same as `bugwardenErrorHandler`) — a request that errors is only reported once, via the error path, not twice.
+
+11. **Define your routes and start your server:**
 
 ```javascript
 app.get("/", (req, res) => {

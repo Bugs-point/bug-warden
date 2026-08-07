@@ -1,3 +1,9 @@
+/**
+ * Fields that can be combined to decide whether two matching events belong to the same
+ * alert "group" for throttling/counting purposes. See BugwardenNotificationConfig.groupBy.
+ */
+export type BugwardenGroupByField = "route" | "method" | "statusCode" | "errorMessage";
+
 export interface BugwardenNotificationConfig {
   /**
    * Specifies the routes for which notifications should be triggered.
@@ -49,6 +55,24 @@ export interface BugwardenNotificationConfig {
    * - "{response-body}"
    * - "{error-message}" (only meaningful with bugwardenErrorHandler)
    * - "{error-stack}" (only meaningful with bugwardenErrorHandler)
+   * - "{occurrence-count}" (total times this alert group has matched, including suppressed ones)
    */
   message: string;
+
+  /**
+   * Controls what counts as "the same alert" for throttling and the {occurrence-count}
+   * placeholder. Without this, a single wildcard config (e.g. routes: "all") would lump
+   * together unrelated incidents happening on different routes/status codes into one
+   * throttle bucket. Defaults to ["route", "statusCode"], so distinct route+status
+   * combinations are tracked independently even under the same config.
+   *
+   * @property {BugwardenGroupByField[]} groupBy
+   * @example
+   * - ["route", "statusCode"] (default) — /api/a failing with 500 and /api/b failing with
+   *   500 are tracked as two separate groups.
+   * - ["route"] — group purely by endpoint regardless of status code.
+   * - ["route", "statusCode", "errorMessage"] — with bugwardenErrorHandler, only collapse
+   *   repeats that also share the exact same error message.
+   */
+  groupBy?: BugwardenGroupByField[];
 }

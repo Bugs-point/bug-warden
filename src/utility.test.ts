@@ -290,10 +290,12 @@ describe("createNotificationThrottle", () => {
     expect(throttle.shouldNotify("key", 0)).toEqual({
       allowed: true,
       suppressedCount: 0,
+      occurrenceCount: 1,
     });
     expect(throttle.shouldNotify("key", 0)).toEqual({
       allowed: true,
       suppressedCount: 0,
+      occurrenceCount: 2,
     });
   });
 
@@ -303,14 +305,17 @@ describe("createNotificationThrottle", () => {
     expect(throttle.shouldNotify("key", 1000)).toEqual({
       allowed: true,
       suppressedCount: 0,
+      occurrenceCount: 1,
     });
     expect(throttle.shouldNotify("key", 1000)).toEqual({
       allowed: false,
       suppressedCount: 1,
+      occurrenceCount: 2,
     });
     expect(throttle.shouldNotify("key", 1000)).toEqual({
       allowed: false,
       suppressedCount: 2,
+      occurrenceCount: 3,
     });
   });
 
@@ -326,6 +331,7 @@ describe("createNotificationThrottle", () => {
     expect(throttle.shouldNotify("key", 1000)).toEqual({
       allowed: true,
       suppressedCount: 2,
+      occurrenceCount: 4,
     });
   });
 
@@ -336,6 +342,15 @@ describe("createNotificationThrottle", () => {
     expect(throttle.shouldNotify("b", 1000)).toEqual({
       allowed: true,
       suppressedCount: 0,
+      occurrenceCount: 1,
     });
+  });
+
+  it("keeps occurrenceCount running even while allowed is always true (throttleMs omitted)", () => {
+    const throttle = createNotificationThrottle();
+
+    throttle.shouldNotify("key", 0);
+    throttle.shouldNotify("key", 0);
+    expect(throttle.shouldNotify("key", 0).occurrenceCount).toBe(3);
   });
 });
