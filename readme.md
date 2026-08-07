@@ -35,6 +35,14 @@ To install BugWarden, use npm:
 npm install bugwarden
 ```
 
+Or skip straight to a working alert with the interactive setup:
+
+```bash
+npx bugwarden init
+```
+
+It asks which framework you're using (Express/Fastify/Koa) and which alert channel to wire up (Slack/Discord/generic webhook), writes the corresponding `BUGWARDEN_*_WEBHOOK_URL` to a `.env` file in the current directory (see "Zero-config mode" below), and prints the one-line snippet to add to your app. It never touches your application source files — only `.env` and the terminal.
+
 ## Usage
 
 1. **Require BugWarden** in your Express.js application:

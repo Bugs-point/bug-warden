@@ -5,6 +5,9 @@
   "main": "./dist/app.js",
   "module": "./dist/app.mjs",
   "types": "./dist/app.d.ts",
+  "bin": {
+    "bugwarden": "./bin/bugwarden.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/app.d.ts",
@@ -26,7 +29,7 @@
   "scripts": {
     "lint": "tsc",
     "test": "vitest run",
-    "build": "tsup src/app.ts src/fastify.ts src/koa.ts --format cjs,esm --dts",
+    "build": "tsup src/app.ts src/fastify.ts src/koa.ts src/cli.ts --format cjs,esm --dts",
     "ci": "npm run lint && npm run test && npm run build",
     "release": "npm run lint && npm run test && npm run build && changeset publish"
   },
@@ -93,7 +96,10 @@
     "fastify",
     "fastify-plugin",
     "koa",
-    "koa-middleware"
+    "koa-middleware",
+    "cli",
+    "npx",
+    "scaffolding"
   ],
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
