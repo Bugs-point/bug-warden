@@ -13,6 +13,7 @@ BugWarden is an npm package designed to make your Express.js application's loggi
 - **Detailed request-response logs**, including response times
 - **Middleware integration** for effortless tracking of HTTP activity, for Express, Fastify (`bugwarden/fastify`), or Koa (`bugwarden/koa`)
 - **Slack alerts** triggered by HTTP status code and route, with no separate account or service to sign up for
+- **A local dashboard** (`bugwarden/dashboard`) for recent requests, status trends, and slowest routes — no external service
 
 ## Why BugWarden?
 
@@ -24,6 +25,7 @@ BugWarden is an npm package designed to make your Express.js application's loggi
 | Requires an external account/service | No | No | No | Yes |
 | Captures error stack traces | ✅ | ❌ | General-purpose logger | ✅ |
 | Works with just env vars, no code config | ✅ | ❌ | ❌ | ❌ |
+| Built-in local dashboard UI | ✅ | ❌ | ❌ | Hosted (external) |
 
 BugWarden isn't trying to replace full error-tracking platforms like Sentry — think of it as Morgan-style request logging with Slack/Discord/webhook alerting built in, for teams who want a signal in their team chat without standing up another service.
 
@@ -331,7 +333,23 @@ app.listen(3002);
 
 Thrown errors are logged/notified with `{error-message}`/`{error-stack}`, then rethrown so Koa's own `app.on("error", ...)` and any error-handling middleware you already have keep working unchanged.
 
-12. **Define your routes and start your server:**
+12. Want a live view instead of scrolling logs? Mount the dashboard
+
+`bugwarden/dashboard` is a self-contained Express router giving you a small local, in-memory web UI — recent requests, status-code breakdown, and slowest routes — with zero setup and no external service.
+
+```javascript
+const { bugwardenDashboard } = require("bugwarden/dashboard");
+// ESM: import { bugwardenDashboard } from "bugwarden/dashboard";
+
+app.use(bugwardenDashboard()); // UI + JSON API under /bugwarden
+// app.use(bugwardenDashboard({ path: "/admin/monitor", maxEvents: 1000 }));
+```
+
+Open `http://localhost:<port>/bugwarden` in a browser. It polls its own JSON API (`/bugwarden/api/stats`, `/bugwarden/api/events`) every 5 seconds — no build step, no charting library, nothing else to install.
+
+It's independent of `bugwarden()`/`bugwardenErrorHandler()` — mount it on its own, or alongside them for Slack/Discord/webhook alerts too. State is process-local, in-memory, and capped at `maxEvents` (default 500, oldest dropped first) — it's a local/dev observability tool, not a persistent log store, and it doesn't survive a restart or work across multiple processes/instances. Because it exposes request URLs, status codes, and timing, put it behind your own auth or IP allowlist if your app is reachable from outside your team.
+
+13. **Define your routes and start your server:**
 
 ```javascript
 app.get("/", (req, res) => {

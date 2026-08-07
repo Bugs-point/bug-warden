@@ -24,12 +24,17 @@
       "import": "./dist/koa.mjs",
       "require": "./dist/koa.js"
     },
+    "./dashboard": {
+      "types": "./dist/dashboard.d.ts",
+      "import": "./dist/dashboard.mjs",
+      "require": "./dist/dashboard.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
     "lint": "tsc",
     "test": "vitest run",
-    "build": "tsup src/app.ts src/fastify.ts src/koa.ts src/cli.ts --format cjs,esm --dts",
+    "build": "tsup src/app.ts src/fastify.ts src/koa.ts src/cli.ts src/dashboard.ts --format cjs,esm --dts",
     "ci": "npm run lint && npm run test && npm run build",
     "release": "npm run lint && npm run test && npm run build && changeset publish"
   },
@@ -99,7 +104,9 @@
     "koa-middleware",
     "cli",
     "npx",
-    "scaffolding"
+    "scaffolding",
+    "dashboard",
+    "request-monitoring"
   ],
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
