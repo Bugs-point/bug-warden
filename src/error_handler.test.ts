@@ -138,4 +138,33 @@ describe("bugwardenErrorHandler", () => {
       expect.stringContaining("request-id: trace-me")
     );
   });
+
+  it("captures request body and headers (redacted) when an error's status matches captureRequestData", async () => {
+    const customLogger = vi.fn();
+    const app = express();
+    app.use(express.json());
+    app.post("/orders", () => {
+      throw new Error("kaboom");
+    });
+    app.use(
+      bugwardenErrorHandler({
+        logging: true,
+        logger: customLogger,
+        captureRequestData: [{ onStatus: "5xx", fields: ["body", "headers"] }],
+      })
+    );
+
+    await request(app)
+      .post("/orders")
+      .set("Authorization", "Bearer secret-token")
+      .send({ amount: 100 });
+    await flushFinishEvent();
+
+    expect(customLogger).toHaveBeenCalledWith(
+      expect.stringContaining('request-body: {"amount":100}')
+    );
+    const call = customLogger.mock.calls.find((c) => c[0].includes("request-headers"));
+    expect(call?.[0]).toContain('"authorization":"[REDACTED]"');
+    expect(call?.[0]).not.toContain("secret-token");
+  });
 });

@@ -1,7 +1,9 @@
 import { NextFunction, Request, Response } from "express";
 import { BugwardenOptions } from "./bugwarden_options";
 import {
+  collectCapturedRequestFields,
   createNotificationThrottle,
+  findMatchingCaptureRule,
   processDiscordNotification,
   processLog,
   processSlackNotification,
@@ -43,6 +45,15 @@ export function bugwardenErrorHandler(options?: BugwardenOptions) {
     const startTime = getRequestStartTime(req);
     const elapsedTime = startTime !== undefined ? Date.now() - startTime : 0;
     const requestId = getRequestId(req);
+    const originalUrl = req.route?.path || req.originalUrl;
+    const matchedCaptureRule = findMatchingCaptureRule(
+      resolvedOptions.captureRequestData,
+      originalUrl,
+      statusCode
+    );
+    const capturedRequest = matchedCaptureRule
+      ? collectCapturedRequestFields(req, matchedCaptureRule)
+      : undefined;
 
     const allowedAppLogs = processLog(
       req,
@@ -52,7 +63,8 @@ export function bugwardenErrorHandler(options?: BugwardenOptions) {
       resolvedOptions.format,
       requestId,
       undefined,
-      err
+      err,
+      capturedRequest
     );
     if (allowedAppLogs) logger(allowedAppLogs);
 
@@ -67,7 +79,8 @@ export function bugwardenErrorHandler(options?: BugwardenOptions) {
         requestId,
         slackNotificationThrottle,
         undefined,
-        err
+        err,
+        capturedRequest
       );
     }
 
@@ -82,7 +95,8 @@ export function bugwardenErrorHandler(options?: BugwardenOptions) {
         requestId,
         webhookNotificationThrottle,
         undefined,
-        err
+        err,
+        capturedRequest
       );
     }
 
@@ -97,7 +111,8 @@ export function bugwardenErrorHandler(options?: BugwardenOptions) {
         requestId,
         discordNotificationThrottle,
         undefined,
-        err
+        err,
+        capturedRequest
       );
     }
 

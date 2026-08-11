@@ -85,11 +85,26 @@ app.use(bugwarden({ format: "json" }));
 // Capture up to N characters of the response body (from res.send/res.json),
 // available as the responseBody log field and {response-body} placeholder
 app.use(bugwarden({ captureResponseBody: 500 }));
+
+// Capture the *request* payload that caused a given status code — the thing you actually
+// need to reproduce a 500, not just the fact that it happened
+app.use(
+  bugwarden({
+    captureRequestData: [
+      { onStatus: "5xx", fields: ["body", "params", "query", "headers"] },
+      { onStatus: "400", fields: ["body", "headers"] },
+    ],
+  })
+);
 ```
 
 Every request also gets an `x-request-id` — reused from the incoming header if the client already sent one, otherwise generated — echoed back in the response and available as the `requestId` log field / `{request-id}` Slack message placeholder, so you can correlate a log line with the Slack alert it triggered.
 
 `captureResponseBody` is opt-in and off by default — when set, it's genuinely useful for seeing what an error response actually said (e.g. `{response-body}` in a Slack message for 5xx alerts), but be mindful it can capture sensitive data if your responses include any, and it only captures bodies sent via `res.send`/`res.json` (not raw `res.write`/streamed responses).
+
+`captureRequestData` is the other half of that: instead of what the response *said*, it captures what the *request* actually was — `req.body`, `req.params`, `req.query`, `req.headers` — keyed by status code, so a 500 alert tells you exactly what payload triggered it instead of just "something failed on `/orders/:id` again." Each rule has the same `onStatus`/`routes` conventions as Slack notification configs (`routes` defaults to `"all"`); rules are checked in order and the **first match wins** — it doesn't merge multiple matching rules. Each captured field is independently truncated to `maxChars` (default 1000). Available as the `requestBody`/`requestParams`/`requestQuery`/`requestHeaders` log fields and `{request-body}`/`{request-params}`/`{request-query}`/`{request-headers}` placeholders (works with `bugwardenErrorHandler` too, including alongside `{error-message}`/`{error-stack}`).
+
+Because `headers` can include real secrets, a default redaction list (`authorization`, `cookie`, `set-cookie`, `x-api-key`, `proxy-authorization`) replaces those values with `"[REDACTED]"` before anything is captured — logged, or sent to Slack/Discord/webhook. Pass `redactHeaders: []` on a rule to disable that (not recommended for anything but local debugging), or your own list to replace the defaults. `body`/`params`/`query` aren't redacted — if your request bodies carry passwords or tokens, don't capture `body` on the routes that receive them.
 
 `ignore` accepts `"all"`, exact paths, or `"/prefix/*"` wildcards — same conventions as the Slack `routes` option below.
 
@@ -146,6 +161,10 @@ app.use(
 {error-message} // only meaningful with bugwardenErrorHandler
 {error-stack}   // only meaningful with bugwardenErrorHandler
 {occurrence-count} // total times this alert group has matched, including suppressed ones
+{request-body}    // only populated when captureRequestData matches, see below
+{request-params}  // only populated when captureRequestData matches, see below
+{request-query}   // only populated when captureRequestData matches, see below
+{request-headers} // only populated when captureRequestData matches, see below (sensitive headers redacted)
 Example : {method} - {original-url} Failed with status code {status-code}
 Notification : GET - /abc/def/xyz Failed with status code 503
 ```
@@ -240,7 +259,9 @@ app.use(
 );
 ```
 
-It's non-intrusive: it logs, fires notifications, then always calls `next(err)` so your own error-response logic still runs — it never sends a response itself. Two new message placeholders are available here: `{error-message}` and `{error-stack}`. The response status is taken from `err.status`/`err.statusCode` when present, falling back to `500`. It accepts the exact same `BugwardenOptions` shape as `bugwarden()` (`logging`, `format`, `logger`, `configureSlackNotification`, `configureWebhookNotification`, `configureDiscordNotification`), so error alerts can go to their own channel/message, separate from request alerts. If you only imported `bugwarden`, it's also available as `bugwarden.errorHandler(options)`.
+It's non-intrusive: it logs, fires notifications, then always calls `next(err)` so your own error-response logic still runs — it never sends a response itself. Two new message placeholders are available here: `{error-message}` and `{error-stack}`. The response status is taken from `err.status`/`err.statusCode` when present, falling back to `500`. It accepts the exact same `BugwardenOptions` shape as `bugwarden()` (`logging`, `format`, `logger`, `configureSlackNotification`, `configureWebhookNotification`, `configureDiscordNotification`, `captureRequestData`), so error alerts can go to their own channel/message, separate from request alerts, and can include `{request-body}`/`{request-headers}`/etc. alongside `{error-message}`/`{error-stack}` to show exactly what request caused the crash. If you only imported `bugwarden`, it's also available as `bugwarden.errorHandler(options)`.
+
+Heads up if you use both `bugwarden()` and `bugwardenErrorHandler()` together: Express's `res.on("finish")` fires for every response regardless of whether an error occurred, so `bugwarden()`'s own logging/notifications/`captureRequestData` still run once on top of `bugwardenErrorHandler()`'s — you may see two log lines (and, if configured, two alerts) for the same failed request. Scope each one's `onStatus`/`captureRequestData` rules deliberately if you want to avoid that overlap.
 
 8. Zero-config mode: no code, just environment variables
 
@@ -379,6 +400,7 @@ app.listen(3002, () => {
 - Response-Time
 - Request-Id
 - Error-Message / Error-Stack (via `bugwardenErrorHandler`)
+- Request-Body / Request-Params / Request-Query / Request-Headers (via `captureRequestData`)
 
 ## Example Log Output
 

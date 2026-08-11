@@ -56,7 +56,8 @@ export function resolveZeroConfigOptions(
     options?.format,
     options?.configureWebhookNotification,
     options?.configureDiscordNotification,
-    options?.captureResponseBody
+    options?.captureResponseBody,
+    options?.captureRequestData
   );
 
   const throttleMs = resolveThrottleMs();

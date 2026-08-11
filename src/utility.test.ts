@@ -218,6 +218,55 @@ describe("processLog", () => {
     expect(processLog(req, res, 1, ["responseBody"], "text")).toBe("");
     expect(processLog(req, res, 1, ["responseBody"], "json")).toBe("");
   });
+
+  it("includes captured request fields when provided", () => {
+    const req = createRequest();
+    const res = createResponse();
+    const capturedRequest = {
+      body: '{"email":"user@example.com"}',
+      params: '{"id":"42"}',
+      query: '{"debug":"true"}',
+      headers: '{"authorization":"[REDACTED]"}',
+    };
+
+    const textLog = processLog(
+      req,
+      res,
+      1,
+      ["requestBody", "requestParams", "requestQuery", "requestHeaders"],
+      "text",
+      undefined,
+      undefined,
+      undefined,
+      capturedRequest
+    );
+    expect(textLog).toContain('request-body: {"email":"user@example.com"}');
+    expect(textLog).toContain('request-params: {"id":"42"}');
+    expect(textLog).toContain('request-query: {"debug":"true"}');
+    expect(textLog).toContain('request-headers: {"authorization":"[REDACTED]"}');
+
+    const jsonLog = processLog(
+      req,
+      res,
+      1,
+      ["requestBody"],
+      "json",
+      undefined,
+      undefined,
+      undefined,
+      capturedRequest
+    );
+    expect(JSON.parse(jsonLog)).toEqual({ requestBody: capturedRequest.body });
+  });
+
+  it("omits captured request fields when not provided", () => {
+    const req = createRequest();
+    const res = createResponse();
+
+    expect(
+      processLog(req, res, 1, ["requestBody", "requestParams", "requestQuery", "requestHeaders"])
+    ).toBe("");
+  });
 });
 
 describe("matchesRoute", () => {

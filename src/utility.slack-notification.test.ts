@@ -467,4 +467,59 @@ describe("processSlackNotification", () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).text).toBe("Seen 1 times");
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).text).toBe("Seen 2 times");
   });
+
+  it("substitutes {request-body}, {request-params}, {request-query}, and {request-headers}", async () => {
+    const config: BugwardenSlackNotificationOptions = {
+      webhookUrl: "https://hooks.slack.com/test",
+      notificationConfig: [
+        {
+          routes: "all",
+          onStatus: "all",
+          message: "body={request-body} params={request-params} query={request-query} headers={request-headers}",
+        },
+      ],
+    };
+
+    await processSlackNotification(
+      config,
+      createRequest(),
+      createResponse(500),
+      new Date(),
+      10,
+      console.log,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        body: '{"email":"x@y.com"}',
+        params: '{"id":"42"}',
+        query: '{"debug":"true"}',
+        headers: '{"authorization":"[REDACTED]"}',
+      }
+    );
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).text).toBe(
+      'body={"email":"x@y.com"} params={"id":"42"} query={"debug":"true"} headers={"authorization":"[REDACTED]"}'
+    );
+  });
+
+  it("falls back to '-' for request capture placeholders when nothing was captured", async () => {
+    const config: BugwardenSlackNotificationOptions = {
+      webhookUrl: "https://hooks.slack.com/test",
+      notificationConfig: [
+        { routes: "all", onStatus: "all", message: "body={request-body}" },
+      ],
+    };
+
+    await processSlackNotification(
+      config,
+      createRequest(),
+      createResponse(500),
+      new Date(),
+      10
+    );
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).text).toBe("body=-");
+  });
 });

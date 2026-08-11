@@ -13,6 +13,10 @@ import { BugwardenLogLevel } from "./types/log_level";
 import { BugwardenLogLevelColorsPalette } from "./bugwarden_log_level_color_palette";
 import { BugwardenLogger } from "./types/bugwarden_logger";
 import { BugwardenLogFormat } from "./types/bugwarden_log_format";
+import {
+  BugwardenRequestCaptureConfig,
+  BugwardenRequestField,
+} from "./request_capture_config";
 
 /**
  * Retrieves the current timestamp formatted as a string in the en-US locale with 12-hour time format.
@@ -143,6 +147,10 @@ const ALL_LOG_FIELD_KEYS: LogFieldKey[] = [
   "responseBody",
   "errorMessage",
   "errorStack",
+  "requestBody",
+  "requestParams",
+  "requestQuery",
+  "requestHeaders",
 ];
 
 const LOG_FIELD_LABELS: Record<LogFieldKey, string> = {
@@ -160,6 +168,10 @@ const LOG_FIELD_LABELS: Record<LogFieldKey, string> = {
   responseBody: BugwardenLogParameterType.RESPONSE_BODY,
   errorMessage: BugwardenLogParameterType.ERROR_MESSAGE,
   errorStack: BugwardenLogParameterType.ERROR_STACK,
+  requestBody: BugwardenLogParameterType.REQUEST_BODY,
+  requestParams: BugwardenLogParameterType.REQUEST_PARAMS,
+  requestQuery: BugwardenLogParameterType.REQUEST_QUERY,
+  requestHeaders: BugwardenLogParameterType.REQUEST_HEADERS,
 };
 
 function collectLogFields(
@@ -168,7 +180,8 @@ function collectLogFields(
   elapsedTime: number,
   requestId?: string,
   responseBody?: string,
-  error?: Error
+  error?: Error,
+  capturedRequest?: CapturedRequestFields
 ): Record<LogFieldKey, string | number | undefined> {
   return {
     ip: req.ip,
@@ -185,6 +198,10 @@ function collectLogFields(
     responseBody,
     errorMessage: error?.message,
     errorStack: error?.stack,
+    requestBody: capturedRequest?.body,
+    requestParams: capturedRequest?.params,
+    requestQuery: capturedRequest?.query,
+    requestHeaders: capturedRequest?.headers,
   };
 }
 
@@ -200,6 +217,8 @@ function collectLogFields(
  * @param responseBody - Optional captured response body (see BugwardenOptions.captureResponseBody).
  * @param error - Optional error (see bugwardenErrorHandler) whose message/stack are included as the
  * errorMessage/errorStack fields.
+ * @param capturedRequest - Optional captured request body/params/query/headers (see
+ * BugwardenOptions.captureRequestData).
  * @returns A formatted log line containing relevant information based on the provided options.
  */
 export function processLog(
@@ -210,14 +229,23 @@ export function processLog(
   format: BugwardenLogFormat = "text",
   requestId?: string,
   responseBody?: string,
-  error?: Error
+  error?: Error,
+  capturedRequest?: CapturedRequestFields
 ): string {
   if (logging === false) return "";
 
   const selectedKeys = Array.isArray(logging) ? logging : ALL_LOG_FIELD_KEYS;
   if (!selectedKeys.length) return "";
 
-  const fields = collectLogFields(req, res, elapsedTime, requestId, responseBody, error);
+  const fields = collectLogFields(
+    req,
+    res,
+    elapsedTime,
+    requestId,
+    responseBody,
+    error,
+    capturedRequest
+  );
 
   if (format === "json") {
     const jsonLog: Record<string, string | number | undefined> = {};
@@ -239,17 +267,18 @@ export function processLog(
 }
 
 /**
- * Checks whether a request (by status code and matched URL) satisfies a notification
- * config's onStatus/routes filters. Shared by every notification channel (Slack, generic
- * webhook, ...) so the status/route matching rules only need to be implemented once.
+ * Checks whether a status code + URL satisfies a given onStatus/routes filter pair. Shared
+ * by notification config matching and request-capture rule matching so the "all" / range /
+ * exact-code / wildcard-route conventions only need to be implemented once.
  */
-function matchesNotificationConfig(
-  config: BugwardenNotificationConfig,
+function matchesStatusAndRoute(
+  onStatus: string,
+  routes: string,
   originalUrl: string,
   statusCode: number
 ): boolean {
-  const onStatuses = config.onStatus.split(",");
-  const routes = config.routes.split(",");
+  const onStatuses = onStatus.split(",");
+  const routeList = routes.split(",");
 
   let isStatusCodeIncluded = false;
   if (onStatuses.includes("all")) {
@@ -302,10 +331,10 @@ function matchesNotificationConfig(
   }
 
   let isEndpointIncluded = false;
-  if (routes.includes("all")) {
+  if (routeList.includes("all")) {
     isEndpointIncluded = true;
   } else {
-    for (const route of routes) {
+    for (const route of routeList) {
       if (matchesRoute(originalUrl, route)) {
         isEndpointIncluded = true;
         break;
@@ -314,6 +343,105 @@ function matchesNotificationConfig(
   }
 
   return isStatusCodeIncluded && isEndpointIncluded;
+}
+
+/**
+ * Checks whether a request (by status code and matched URL) satisfies a notification
+ * config's onStatus/routes filters. Shared by every notification channel (Slack, generic
+ * webhook, ...) so the status/route matching rules only need to be implemented once.
+ */
+function matchesNotificationConfig(
+  config: BugwardenNotificationConfig,
+  originalUrl: string,
+  statusCode: number
+): boolean {
+  return matchesStatusAndRoute(config.onStatus, config.routes, originalUrl, statusCode);
+}
+
+const DEFAULT_REDACTED_HEADERS = [
+  "authorization",
+  "cookie",
+  "set-cookie",
+  "x-api-key",
+  "proxy-authorization",
+];
+
+const DEFAULT_CAPTURE_MAX_CHARS = 1000;
+
+export interface CapturedRequestFields {
+  body?: string;
+  params?: string;
+  query?: string;
+  headers?: string;
+}
+
+/**
+ * Truncates `text` to `maxChars`, appending an "…(truncated)" marker when it was cut off.
+ */
+export function truncateText(text: string, maxChars: number): string {
+  return text.length > maxChars ? `${text.slice(0, maxChars)}…(truncated)` : text;
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/**
+ * Finds the first rule in `rules` whose onStatus/routes filters match the current request,
+ * evaluated in array order — the first match wins, rather than merging every matching rule.
+ */
+export function findMatchingCaptureRule(
+  rules: BugwardenRequestCaptureConfig[] | undefined,
+  originalUrl: string,
+  statusCode: number
+): BugwardenRequestCaptureConfig | undefined {
+  if (!rules?.length) return undefined;
+  return rules.find((rule) =>
+    matchesStatusAndRoute(rule.onStatus, rule.routes ?? "all", originalUrl, statusCode)
+  );
+}
+
+/**
+ * Captures the request fields named in a matched BugwardenRequestCaptureConfig rule
+ * (body/params/query/headers), redacting sensitive header values and truncating each field
+ * independently to rule.maxChars (default 1000).
+ */
+export function collectCapturedRequestFields(
+  req: Request,
+  rule: BugwardenRequestCaptureConfig
+): CapturedRequestFields {
+  const maxChars = rule.maxChars ?? DEFAULT_CAPTURE_MAX_CHARS;
+  const redactedHeaders = rule.redactHeaders ?? DEFAULT_REDACTED_HEADERS;
+  const captured: CapturedRequestFields = {};
+
+  const fieldSet = new Set<BugwardenRequestField>(rule.fields);
+
+  if (fieldSet.has("body") && req.body !== undefined) {
+    captured.body = truncateText(safeStringify(req.body), maxChars);
+  }
+
+  if (fieldSet.has("params")) {
+    captured.params = truncateText(safeStringify(req.params ?? {}), maxChars);
+  }
+
+  if (fieldSet.has("query")) {
+    captured.query = truncateText(safeStringify(req.query ?? {}), maxChars);
+  }
+
+  if (fieldSet.has("headers")) {
+    const redactedSet = new Set(redactedHeaders.map((h) => h.toLowerCase()));
+    const headers: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(req.headers ?? {})) {
+      headers[key] = redactedSet.has(key.toLowerCase()) ? "[REDACTED]" : value;
+    }
+    captured.headers = truncateText(safeStringify(headers), maxChars);
+  }
+
+  return captured;
 }
 
 const DEFAULT_GROUP_BY: BugwardenGroupByField[] = ["route", "statusCode"];
@@ -367,7 +495,8 @@ function renderMessageTemplate(
   requestId?: string,
   responseBody?: string,
   error?: Error,
-  occurrenceCount?: number
+  occurrenceCount?: number,
+  capturedRequest?: CapturedRequestFields
 ): string {
   return template
     .replace(`{${BugwardenLogParameterType.IP}}`, `${req?.ip}`)
@@ -399,6 +528,22 @@ function renderMessageTemplate(
     .replace(
       `{${BugwardenLogParameterType.OCCURRENCE_COUNT}}`,
       `${occurrenceCount ?? 1}`
+    )
+    .replace(
+      `{${BugwardenLogParameterType.REQUEST_BODY}}`,
+      `${capturedRequest?.body ?? "-"}`
+    )
+    .replace(
+      `{${BugwardenLogParameterType.REQUEST_PARAMS}}`,
+      `${capturedRequest?.params ?? "-"}`
+    )
+    .replace(
+      `{${BugwardenLogParameterType.REQUEST_QUERY}}`,
+      `${capturedRequest?.query ?? "-"}`
+    )
+    .replace(
+      `{${BugwardenLogParameterType.REQUEST_HEADERS}}`,
+      `${capturedRequest?.headers ?? "-"}`
     );
 }
 
@@ -431,7 +576,8 @@ export async function processSlackNotification(
   requestId?: string,
   throttle?: NotificationThrottle,
   responseBody?: string,
-  error?: Error
+  error?: Error,
+  capturedRequest?: CapturedRequestFields
 ) {
   const originalUrl = req.route?.path || req.originalUrl;
   const statusCode = res.statusCode;
@@ -479,7 +625,8 @@ export async function processSlackNotification(
       requestId,
       responseBody,
       error,
-      occurrenceCount
+      occurrenceCount,
+      capturedRequest
     );
     const finalMessage =
       suppressedCount > 0
@@ -500,7 +647,8 @@ export async function processWebhookNotification(
   requestId?: string,
   throttle?: NotificationThrottle,
   responseBody?: string,
-  error?: Error
+  error?: Error,
+  capturedRequest?: CapturedRequestFields
 ) {
   const originalUrl = req.route?.path || req.originalUrl;
   const statusCode = res.statusCode;
@@ -548,7 +696,8 @@ export async function processWebhookNotification(
       requestId,
       responseBody,
       error,
-      occurrenceCount
+      occurrenceCount,
+      capturedRequest
     );
     const finalMessage =
       suppressedCount > 0
@@ -569,7 +718,8 @@ export async function processDiscordNotification(
   requestId?: string,
   throttle?: NotificationThrottle,
   responseBody?: string,
-  error?: Error
+  error?: Error,
+  capturedRequest?: CapturedRequestFields
 ) {
   const originalUrl = req.route?.path || req.originalUrl;
   const statusCode = res.statusCode;
@@ -617,7 +767,8 @@ export async function processDiscordNotification(
       requestId,
       responseBody,
       error,
-      occurrenceCount
+      occurrenceCount,
+      capturedRequest
     );
     const finalMessage =
       suppressedCount > 0

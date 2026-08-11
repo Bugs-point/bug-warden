@@ -13,7 +13,11 @@ export class BugwardenLogProperties {
     public requestId?: string,
     public responseBody?: string,
     public errorMessage?: string,
-    public errorStack?: string
+    public errorStack?: string,
+    public requestBody?: string,
+    public requestParams?: string,
+    public requestQuery?: string,
+    public requestHeaders?: string
   ) {
     this.ip = ip;
     this.timestamp = timestamp;
@@ -29,5 +33,9 @@ export class BugwardenLogProperties {
     this.responseBody = responseBody;
     this.errorMessage = errorMessage;
     this.errorStack = errorStack;
+    this.requestBody = requestBody;
+    this.requestParams = requestParams;
+    this.requestQuery = requestQuery;
+    this.requestHeaders = requestHeaders;
   }
 }

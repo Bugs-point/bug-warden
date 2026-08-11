@@ -1,12 +1,15 @@
 import { randomUUID } from "crypto";
 import { NextFunction, Request, Response } from "express";
 import {
+  collectCapturedRequestFields,
   createNotificationThrottle,
+  findMatchingCaptureRule,
   isIgnoredRoute,
   processDiscordNotification,
   processLog,
   processSlackNotification,
   processWebhookNotification,
+  truncateText,
 } from "./utility";
 import { BugwardenOptions } from "./bugwarden_options";
 import { setRequestId, setRequestStartTime } from "./request_context";
@@ -48,10 +51,7 @@ export function bugwarden(options?: BugwardenOptions) {
       res.send = ((body?: unknown) => {
         if (typeof body === "string" || Buffer.isBuffer(body)) {
           const text = typeof body === "string" ? body : body.toString("utf8");
-          capturedResponseBody =
-            text.length > maxResponseBodyChars
-              ? `${text.slice(0, maxResponseBodyChars)}…(truncated)`
-              : text;
+          capturedResponseBody = truncateText(text, maxResponseBodyChars);
         }
         return originalSend(body);
       }) as typeof res.send;
@@ -62,6 +62,16 @@ export function bugwarden(options?: BugwardenOptions) {
 
       const elapsedTime = Date.now() - startTimeMS;
       const timestamp = new Date();
+      const originalUrl = req.route?.path || req.originalUrl;
+      const matchedCaptureRule = findMatchingCaptureRule(
+        resolvedOptions.captureRequestData,
+        originalUrl,
+        res.statusCode
+      );
+      const capturedRequest = matchedCaptureRule
+        ? collectCapturedRequestFields(req, matchedCaptureRule)
+        : undefined;
+
       const allowedAppLogs = processLog(
         req,
         res,
@@ -69,7 +79,9 @@ export function bugwarden(options?: BugwardenOptions) {
         resolvedOptions.logging,
         resolvedOptions.format,
         requestId,
-        capturedResponseBody
+        capturedResponseBody,
+        undefined,
+        capturedRequest
       );
 
       /* Log processing */
@@ -86,7 +98,9 @@ export function bugwarden(options?: BugwardenOptions) {
           logger,
           requestId,
           slackNotificationThrottle,
-          capturedResponseBody
+          capturedResponseBody,
+          undefined,
+          capturedRequest
         );
       }
 
@@ -101,7 +115,9 @@ export function bugwarden(options?: BugwardenOptions) {
           logger,
           requestId,
           webhookNotificationThrottle,
-          capturedResponseBody
+          capturedResponseBody,
+          undefined,
+          capturedRequest
         );
       }
 
@@ -116,7 +132,9 @@ export function bugwarden(options?: BugwardenOptions) {
           logger,
           requestId,
           discordNotificationThrottle,
-          capturedResponseBody
+          capturedResponseBody,
+          undefined,
+          capturedRequest
         );
       }
     });
