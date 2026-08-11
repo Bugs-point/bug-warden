@@ -1,6 +1,6 @@
 {
   "name": "bugwarden",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "BugWarden is an open-source Node.js module that guards your applications against bugs and errors. With integrated error handling and reporting, it ensures real-time monitoring of server-side issues, alerting you on services like Slack and email, helping you maintain robust and reliable software.",
   "main": "./dist/app.js",
   "module": "./dist/app.mjs",
@@ -49,8 +49,10 @@
   },
   "homepage": "https://github.com/Bugs-point/bug-warden#readme",
   "dependencies": {
+    "dotenv": "^8.2.0",
     "express": "^4.18.2",
-    "fastify-plugin": "^4.5.1"
+    "fastify-plugin": "^4.5.1",
+    "node-fetch": "^3.3.2"
   },
   "peerDependencies": {
     "fastify": ">=4.0.0",
